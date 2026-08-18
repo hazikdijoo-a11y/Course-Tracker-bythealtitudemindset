@@ -468,6 +468,15 @@
     line-height: 1.4;
   }
   .note.warn { color: #993C1D; }
+  .note.target-note {
+    margin-top: 10px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    background: rgba(99,153,34,.09);
+    border: 1px solid rgba(99,153,34,.28);
+    color: #3B6D11;
+  }
+  .note.target-note:empty { display: none; }
 
   .divider { border: 0; border-top: 1px solid var(--edge-soft); margin: 16px 0; }
 
@@ -623,7 +632,7 @@
       <div class="legend" aria-label="Legend">
         <span><i class="lg-empty"></i> Not yet</span>
         <span><i class="lg-partial"></i> Partly done &#9680;</span>
-        <span><i class="lg-done"></i> 80%+ &mdash; target met &#10003;</span>
+        <span><i class="lg-done"></i> Target met &#10003;</span>
         <span><i class="lg-missed"></i> Missed &#10005;</span>
         <span><i class="lg-flight"></i> Flight day &#9992;</span>
       </div>
@@ -641,6 +650,7 @@
           <button type="submit" class="btn-primary" id="addBtn">Add</button>
         </form>
         <p class="note" id="addNote"></p>
+        <p class="note target-note" id="targetNote"></p>
 
         <hr class="divider">
 
@@ -735,6 +745,7 @@
   var toastEl    = $('toast');
   var liveEl     = $('live');
   var panel      = $('habitsPanel');
+  var targetNote = $('targetNote');
   var daySheet   = $('daySheet');
   var sheetTitle = $('sheetTitle');
   var sheetScore = $('sheetScore');
@@ -868,6 +879,15 @@
     return { done: done, total: total, pct: total ? done / total : 0 };
   }
 
+  /* 80% of the list, but you may always miss one. Below 5 habits a flat 80%
+     silently means "all of them, every day" — 1/2, 2/3 and 3/4 all fall short
+     of the bar — so the grace of one miss is what makes the target real at
+     small habit counts. At 5+ this is identical to plain >= 80%. */
+  function requiredForGoal(total) {
+    if (total <= 1) return total;
+    return Math.max(1, Math.min(Math.ceil(total * GOAL), total - 1));
+  }
+
   function isPast(day) {
     var t = new Date(); t.setHours(0, 0, 0, 0);
     return new Date(view.y, view.m, day) < t;
@@ -881,7 +901,7 @@
     var sc = dayScore(day);
     if (!sc.total) return 'pending';
     if (!sc.done) return isPast(day) ? 'missed' : 'pending';
-    return sc.pct >= GOAL ? 'met' : 'partial';
+    return sc.done >= requiredForGoal(sc.total) ? 'met' : 'partial';
   }
 
   function counts(habitId) {
@@ -1067,7 +1087,8 @@
       label = date + ', not logged yet';
     } else {
       label = date + ', ' + sc.done + ' of ' + sc.total + ' habits, ' + pct + ' percent, ' +
-              (st === 'met' ? 'target met' : 'partly done');
+              (st === 'met' ? 'target met' : 'partly done, target is ' +
+               requiredForGoal(sc.total) + ' of ' + sc.total);
     }
     ref.g.setAttribute('aria-label', label);
   }
@@ -1155,6 +1176,18 @@
       habitList.appendChild(li);
     });
 
+    var total = state.habits.length;
+    if (!total) {
+      targetNote.textContent = '';
+    } else if (total === 1) {
+      targetNote.textContent = 'Daily target: your one habit, every day.';
+    } else {
+      var req = requiredForGoal(total);
+      targetNote.textContent = 'Daily target: ' + req + ' of ' + total +
+        ' (' + Math.round(req / total * 100) + '%) — you can miss ' + (total - req) +
+        (total - req === 1 ? ' habit' : ' habits') + ' and still fly green.';
+    }
+
     var full = state.habits.length >= MAX_HABITS;
     addInput.disabled = full;
     addBtn.disabled = full;
@@ -1201,7 +1234,8 @@
     sheetVerdict.textContent = {
       flight:  'Flight day — excluded from your totals',
       met:     'Target met — flying green',
-      partial: 'Partly done — ' + Math.max(0, Math.ceil(sc.total * GOAL) - sc.done) + ' more to hit 80%',
+      partial: 'Partly done — ' + (requiredForGoal(sc.total) - sc.done) +
+               ' more to reach ' + requiredForGoal(sc.total) + ' / ' + sc.total,
       missed:  'Nothing ticked on this day',
       pending: sc.total ? 'Nothing ticked yet' : ''
     }[st] || '';
