@@ -189,6 +189,17 @@
 
   .guide { fill: none; stroke: var(--guide); stroke-width: 1.8; stroke-linecap: round; }
 
+  .dow {
+    fill: var(--on-panel-soft);
+    text-anchor: middle;
+    dominant-baseline: central;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    opacity: .75;
+    pointer-events: none;
+  }
+
   .marker { cursor: pointer; }
   .marker .hit { fill: transparent; stroke: none; }
   .marker use { stroke-linejoin: round; stroke-linecap: round; transition: fill .1s ease; }
@@ -202,14 +213,14 @@
     user-select: none;
   }
 
-  .marker.s-empty  use { fill: none;          stroke: var(--empty);       stroke-width: 1.6; }
-  .marker.s-done   use { fill: var(--done);   stroke: var(--done-edge);   stroke-width: 1.0; }
-  .marker.s-missed use { fill: var(--missed); stroke: var(--missed-edge); stroke-width: 2.4; }
-  .marker.s-flight use { fill: var(--flight); stroke: var(--flight-edge); stroke-width: 3.4; }
+  .marker.s-empty   use { fill: none;          stroke: var(--empty);       stroke-width: 1.4; }
+  .marker.s-met     use { fill: var(--done);   stroke: var(--done-edge);   stroke-width: 0.8; }
+  .marker.s-partial use { fill: var(--missed); stroke: var(--missed-edge); stroke-width: 1.6; }
+  .marker.s-flight  use { fill: var(--flight); stroke: var(--flight-edge); stroke-width: 2.2; }
 
-  .marker.s-done   .badge { fill: var(--done); }
-  .marker.s-missed .badge { fill: var(--missed); }
-  .marker.s-flight .badge { fill: var(--flight); }
+  .marker.s-met     .badge { fill: var(--done); }
+  .marker.s-partial .badge { fill: var(--missed); }
+  .marker.s-flight  .badge { fill: var(--flight); }
 
   .marker:hover use { filter: brightness(1.12); }
   .marker:focus { outline: none; }
@@ -376,7 +387,11 @@
     margin: 0 0 10px;
   }
 
-  .habit-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+  .habit-list {
+    list-style: none; margin: 0 0 12px; padding: 0 2px 0 0;
+    display: grid; gap: 8px;
+    max-height: 46vh; overflow-y: auto;
+  }
 
   .habit-row {
     display: grid;
@@ -474,6 +489,76 @@
   }
   .toast.show { opacity: 1; transform: translate(-50%, 0); }
 
+  /* ---------- day sheet ---------- */
+
+  dialog#daySheet {
+    border: none;
+    padding: 0;
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--ink);
+    width: min(440px, calc(100vw - 28px));
+    max-height: min(82vh, 760px);
+    box-shadow: 0 24px 70px rgba(11,27,51,.35);
+  }
+  dialog#daySheet::backdrop { background: rgba(11,27,51,.55); }
+
+  .sheet-head {
+    background: var(--navy);
+    color: var(--cream);
+    padding: 18px 20px 16px;
+    position: sticky;
+    top: 0;
+  }
+  .sheet-head h3 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 400;
+    color: var(--gold);
+  }
+  .sheet-score {
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .sheet-score.s-met     { color: var(--done); }
+  .sheet-score.s-partial { color: var(--missed); }
+  .sheet-score.s-flight  { color: var(--gold); }
+  .sheet-score.s-empty   { color: var(--on-panel-soft); }
+  .sheet-verdict { font-size: 12.5px; color: rgba(248,246,240,.7); margin-top: 2px; min-height: 1em; }
+
+  .sheet-tools { display: flex; gap: 8px; padding: 12px 20px 0; }
+  .sheet-tools button { flex: 1; font-size: 13px; }
+  .sheet-tools button[aria-pressed="true"] {
+    background: var(--navy); border-color: var(--navy); color: var(--gold); font-weight: 600;
+  }
+
+  .sheet-body { overflow-y: auto; padding: 12px 20px 20px; }
+  #sheetList { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+
+  .tick {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 12px;
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14.5px;
+    min-height: 44px;
+    background: var(--paper);
+  }
+  .tick:hover { border-color: var(--gold-deep); }
+  .tick input { width: 19px; height: 19px; flex: none; accent-color: #639922; cursor: pointer; }
+  .tick.is-on { background: rgba(99,153,34,.09); border-color: rgba(99,153,34,.4); }
+  .tick.is-on span { color: #3B6D11; font-weight: 550; }
+
+  .sheet-foot { padding: 0 20px 18px; }
+  .sheet-foot button { width: 100%; }
+
   .sr-only {
     position: absolute;
     width: 1px; height: 1px;
@@ -532,9 +617,9 @@
       </div>
 
       <div class="legend" aria-label="Legend">
-        <span><i class="lg-empty"></i> Empty &mdash; not logged</span>
-        <span><i class="lg-done"></i> Completed &#10003;</span>
-        <span><i class="lg-missed"></i> Missed &#10005;</span>
+        <span><i class="lg-empty"></i> Nothing ticked</span>
+        <span><i class="lg-done"></i> 80%+ &mdash; target met &#10003;</span>
+        <span><i class="lg-missed"></i> Below 80% &#10005;</span>
         <span><i class="lg-flight"></i> Flight day &#9992;</span>
       </div>
     </section>
@@ -543,7 +628,7 @@
     <details class="card panel" id="habitsPanel" open>
       <summary>Habits</summary>
       <div class="panel-body">
-        <p class="section-title">Habits &mdash; one per turn</p>
+        <p class="section-title">Habits &mdash; ticked off per day</p>
         <ul class="habit-list" id="habitList"></ul>
 
         <form class="add-row" id="addForm">
@@ -578,6 +663,23 @@
   </main>
 </div>
 
+<dialog id="daySheet" aria-labelledby="sheetTitle">
+  <div class="sheet-head">
+    <h3 id="sheetTitle">Day</h3>
+    <div class="sheet-score" id="sheetScore">0 / 0</div>
+    <div class="sheet-verdict" id="sheetVerdict"></div>
+  </div>
+  <div class="sheet-tools">
+    <button type="button" id="sheetFlight" aria-pressed="false">Mark as flight day</button>
+  </div>
+  <div class="sheet-body">
+    <ul id="sheetList"></ul>
+  </div>
+  <div class="sheet-foot">
+    <button type="button" id="sheetClose" class="btn-primary">Done</button>
+  </div>
+</dialog>
+
 <div class="toast" id="toast" role="status" aria-live="polite"></div>
 <p class="sr-only" id="live" role="status" aria-live="polite"></p>
 
@@ -588,12 +690,15 @@
   /* ============================ constants ============================ */
 
   var STORAGE_KEY = 'course-tracker.v1';
-  var MAX_HABITS  = 5;
+  var MAX_HABITS  = 60;
+  var DAYS_PER_TURN = 7;   /* one turn of the spiral = one week */
+  var GOAL = 0.8;          /* >= 80% of habits ticked -> the aircraft flies green */
 
-  var R0        = 120;   // radius at theta=0 of the first turn
-  var DR        = 56;    // radius gained per full turn
+  var R0        = 110;   // radius at theta=0 of the first turn
+  var DR        = 58;    // radius gained per full turn
   var PLANE_LEN = 22;    // nose-to-tail length of the silhouette, in viewBox units
-  var PAD       = 40;    // room outside the outermost turn for day numbers
+  var SCALE     = 2.0;   // 7 markers a turn leaves room for a much bigger plane
+  var PAD       = 92;    // room outside for day numbers + the weekday ring
 
   var SVGNS = 'http://www.w3.org/2000/svg';
   var TWO_PI = Math.PI * 2;
@@ -601,7 +706,8 @@
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  var BADGE = { done: '✓', missed: '✕', flight: '✈' };
+  var BADGE = { met: '✓', partial: '✕', flight: '✈' };
+  var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   /* ============================ elements ============================ */
 
@@ -624,6 +730,13 @@
   var toastEl    = $('toast');
   var liveEl     = $('live');
   var panel      = $('habitsPanel');
+  var daySheet   = $('daySheet');
+  var sheetTitle = $('sheetTitle');
+  var sheetScore = $('sheetScore');
+  var sheetVerdict = $('sheetVerdict');
+  var sheetFlight  = $('sheetFlight');
+  var sheetList    = $('sheetList');
+  var sheetDay     = null;
 
   /* ============================ state ============================ */
 
@@ -738,9 +851,24 @@
     return (log && log[String(day)]) || 'empty';
   }
 
-  /* What the marker actually renders: flight overrides the display only. */
-  function displayState(habitId, day) {
-    return isFlight(day) ? 'flight' : rawValue(habitId, day);
+  /* How much of the day's habit list got ticked. */
+  function dayScore(day) {
+    var log = monthData(false).log;
+    var done = 0;
+    state.habits.forEach(function (h) {
+      var d = log[h.id];
+      if (d && d[String(day)] === 'done') done++;
+    });
+    var total = state.habits.length;
+    return { done: done, total: total, pct: total ? done / total : 0 };
+  }
+
+  /* Flight day still overrides the display and preserves what is underneath. */
+  function dayState(day) {
+    if (isFlight(day)) return 'flight';
+    var sc = dayScore(day);
+    if (!sc.done) return 'empty';
+    return sc.pct >= GOAL ? 'met' : 'partial';
   }
 
   function counts(habitId) {
@@ -777,7 +905,10 @@
     };
   }
 
-  function outerRadius() { return R0 + DR * Math.max(state.habits.length, 1); }
+  /* the spiral now spans the month's weeks, not the habit list */
+  function turnsThisMonth() { return (daysInMonth(view.y, view.m) - 1) / DAYS_PER_TURN; }
+  function outerRadius() { return R0 + DR * turnsThisMonth(); }
+  function firstDow() { return new Date(view.y, view.m, 1).getDay(); }
 
   function el(tag, attrs) {
     var node = document.createElementNS(SVGNS, tag);
@@ -808,16 +939,28 @@
 
   function buildGuide() {
     guideLayer.textContent = '';
-    var turns = state.habits.length;
-    if (!turns) return;
-
+    var turns = turnsThisMonth();
     var d = '';
-    var steps = turns * 240;
+    var steps = Math.round(turns * 240);
     for (var i = 0; i <= steps; i++) {
       var p = pointAt((i / steps) * turns);
       d += (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ' ';
     }
     guideLayer.appendChild(el('path', { d: d, class: 'guide' }));
+
+    /* Every turn is a week, so a day's angle is its weekday — label the spokes. */
+    var out = outerRadius() + 64, dow = firstDow();
+    for (var k = 0; k < DAYS_PER_TURN; k++) {
+      var th = TWO_PI * k / DAYS_PER_TURN;
+      var t = el('text', {
+        class: 'dow',
+        x: (out * Math.sin(th)).toFixed(2),
+        y: (-out * Math.cos(th)).toFixed(2),
+        'font-size': '14'
+      });
+      t.textContent = DOW[(dow + k) % 7];
+      guideLayer.appendChild(t);
+    }
   }
 
   function buildMarkers(n) {
@@ -826,84 +969,94 @@
     markerMap = {};
     labelMap = {};
 
-    state.habits.forEach(function (habit, hi) {
-      for (var day = 1; day <= n; day++) {
-        var p = pointAt(hi + (day - 1) / n);
+    var reach = PLANE_LEN * 0.5 * SCALE;
 
-        /* Keep planes from touching on the tight inner turns. */
-        var spacing = TWO_PI * p.r / n;
-        var scale = Math.max(0.52, Math.min(1.15, spacing * 0.78 / PLANE_LEN));
-        var hitR  = Math.max(9, Math.min(18, spacing * 0.5));
-        var reach = PLANE_LEN * 0.5 * scale;
+    for (var day = 1; day <= n; day++) {
+      var p = pointAt((day - 1) / DAYS_PER_TURN);
+      /* Space around a marker is asymmetric: wide along the turn (the gap to the
+         next day) but only DR across it (the gap to the same weekday a week on).
+         An ellipse aligned to the tangent uses all of the former without
+         overlapping the latter — a circle big enough for one overlaps the other. */
+      var spacing = TWO_PI * p.r / DAYS_PER_TURN;
+      var hitAlong  = Math.min(spacing * 0.48, 62);
+      var hitAcross = DR * 0.48;
 
-        var g = el('g', {
-          class: 'marker',
-          transform: 'translate(' + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ')',
-          role: 'button',
-          tabindex: '0'
-        });
-        g.dataset.habit = habit.id;
-        g.dataset.day = String(day);
+      var g = el('g', {
+        class: 'marker',
+        transform: 'translate(' + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ')',
+        role: 'button',
+        tabindex: '0'
+      });
+      g.dataset.day = String(day);
 
-        g.appendChild(el('circle', { class: 'hit', r: hitR.toFixed(1) }));
-        g.appendChild(el('use', {
-          href: '#plane',
-          transform: 'rotate(' + p.angle.toFixed(2) + ') scale(' + scale.toFixed(3) + ')'
-        }));
+      g.appendChild(el('ellipse', {
+        class: 'hit',
+        rx: hitAcross.toFixed(1),
+        ry: hitAlong.toFixed(1),
+        transform: 'rotate(' + p.angle.toFixed(2) + ')'
+      }));
+      g.appendChild(el('use', {
+        href: '#plane',
+        transform: 'rotate(' + p.angle.toFixed(2) + ') scale(' + SCALE + ')'
+      }));
 
-        /* redundant, non-colour cue on the inner side of the turn */
-        var bOff = reach + 4.5;
-        var badge = el('text', {
-          class: 'badge',
-          x: (-p.ux * bOff).toFixed(2),
-          y: (-p.uy * bOff).toFixed(2),
-          'font-size': (6 * scale + 1.8).toFixed(1)
-        });
-        g.appendChild(badge);
+      var bOff = reach + 11;
+      var badge = el('text', {
+        class: 'badge',
+        x: (-p.ux * bOff).toFixed(2),
+        y: (-p.uy * bOff).toFixed(2),
+        'font-size': '13'
+      });
+      g.appendChild(badge);
 
-        markerLayer.appendChild(g);
-        markerMap[habit.id + ':' + day] = { g: g, badge: badge };
-        paintMarker(habit.id, day);
+      markerLayer.appendChild(g);
+      markerMap[day] = { g: g, badge: badge };
 
-        /* day number, just outside the marker on the outer side of the turn */
-        var lOff = reach + 10;
-        var lg = el('g', { class: 'daylabel', tabindex: '-1', 'aria-hidden': 'true' });
-        lg.dataset.day = String(day);
-        lg.setAttribute('transform',
-          'translate(' + (p.x + p.ux * lOff).toFixed(2) + ',' + (p.y + p.uy * lOff).toFixed(2) + ')');
-        lg.appendChild(el('circle', { class: 'hit', r: (7.5 * scale + 2).toFixed(1) }));
-        var t = el('text', { 'font-size': (7 * scale + 2.4).toFixed(1) });
-        t.textContent = String(day);
-        lg.appendChild(t);
-        labelLayer.appendChild(lg);
-        (labelMap[day] || (labelMap[day] = [])).push(lg);
-      }
-    });
+      /* day number, just outside the marker on the outer side of the turn */
+      var lOff = reach + 15;
+      var lg = el('g', { class: 'daylabel', tabindex: '-1', 'aria-hidden': 'true' });
+      lg.dataset.day = String(day);
+      lg.setAttribute('transform',
+        'translate(' + (p.x + p.ux * lOff).toFixed(2) + ',' + (p.y + p.uy * lOff).toFixed(2) + ')');
+      lg.appendChild(el('circle', { class: 'hit', r: '12' }));
+      var t = el('text', { 'font-size': '14' });
+      t.textContent = String(day);
+      lg.appendChild(t);
+      labelLayer.appendChild(lg);
+      labelMap[day] = [lg];
+
+      paintMarker(day);
+    }
 
     paintAllLabels();
   }
 
-  function paintMarker(habitId, day) {
-    var ref = markerMap[habitId + ':' + day];
+  function paintMarker(day) {
+    var ref = markerMap[day];
     if (!ref) return;
 
-    var st = displayState(habitId, day);
+    var st = dayState(day);
     ref.g.setAttribute('class', 'marker s-' + st);
     ref.badge.textContent = BADGE[st] || '';
 
-    var habit = state.habits.filter(function (h) { return h.id === habitId; })[0];
-    var name = habit ? habit.name : 'Habit';
-    var words = { empty: 'not logged', done: 'completed', missed: 'missed', flight: 'flight day' };
-    var label = name + ', ' + day + ' ' + MONTHS[view.m] + ', ' + words[st];
+    var sc = dayScore(day);
+    var pct = Math.round(sc.pct * 100);
+    var date = day + ' ' + MONTHS[view.m];
+    var label;
     if (st === 'flight') {
-      var under = rawValue(habitId, day);
-      if (under !== 'empty') label += ' (' + words[under] + ' underneath)';
+      label = date + ', flight day';
+      if (sc.done) label += ' (' + sc.done + ' of ' + sc.total + ' still ticked underneath)';
+    } else if (!sc.total) {
+      label = date + ', no habits yet';
+    } else {
+      label = date + ', ' + sc.done + ' of ' + sc.total + ' habits, ' + pct + ' percent, ' +
+              (st === 'met' ? 'target met' : 'below target');
     }
     ref.g.setAttribute('aria-label', label);
   }
 
   function paintDay(day) {
-    state.habits.forEach(function (h) { paintMarker(h.id, day); });
+    paintMarker(day);
     paintLabel(day);
     var btn = dayStrip.querySelector('[data-day="' + day + '"]');
     if (btn) btn.setAttribute('aria-pressed', isFlight(day) ? 'true' : 'false');
@@ -990,7 +1143,7 @@
     addBtn.disabled = full;
     addNote.className = 'note' + (full ? ' warn' : '');
     addNote.textContent = full
-      ? 'Five habits is the cap. Past five turns the rings crowd together and the day markers stop being readable or tappable — delete one to add another.'
+      ? MAX_HABITS + ' habits is the cap — delete one to add another.'
       : (MAX_HABITS - state.habits.length) + ' of ' + MAX_HABITS + ' slots left.';
   }
 
@@ -1005,27 +1158,74 @@
 
   /* ============================ actions ============================ */
 
-  function cycleMarker(habitId, day) {
-    if (isFlight(day)) {
-      toast(day + ' ' + MONTHS[view.m] + ' is a flight day — clear it to log habits.');
-      return;
-    }
+  function openDay(day) {
+    sheetDay = day;
+    renderSheet();
+    if (typeof daySheet.showModal === 'function') daySheet.showModal();
+    else daySheet.setAttribute('open', '');
+  }
+
+  /* Header only. Never rebuilds the list, so ticking never destroys the
+     checkbox under the user's finger or steals keyboard focus. */
+  function renderSheetHead() {
+    var day = sheetDay;
+    if (!day) return;
+    var sc = dayScore(day);
+    var pct = Math.round(sc.pct * 100);
+    var flight = isFlight(day);
+    var dow = DOW[new Date(view.y, view.m, day).getDay()];
+
+    sheetTitle.textContent = dow + ' ' + day + ' ' + MONTHS[view.m];
+    sheetScore.textContent = sc.total
+      ? sc.done + ' / ' + sc.total + '  ·  ' + pct + '%'
+      : 'No habits yet';
+    sheetScore.className = 'sheet-score ' + (flight ? 's-flight' : (!sc.done ? 's-empty' : (sc.pct >= GOAL ? 's-met' : 's-partial')));
+    sheetVerdict.textContent = flight
+      ? 'Flight day — excluded from your totals'
+      : (!sc.total ? '' : (sc.pct >= GOAL ? 'Target met — flying green' : 'Below the 80% target'));
+
+    sheetFlight.setAttribute('aria-pressed', flight ? 'true' : 'false');
+    sheetFlight.textContent = flight ? '✈  Flight day — tap to clear' : 'Mark as flight day';
+  }
+
+  function renderSheet() {
+    var day = sheetDay;
+    if (!day) return;
+    renderSheetHead();
+
+    var log = monthData(false).log;
+    sheetList.textContent = '';
+    state.habits.forEach(function (h) {
+      var on = !!(log[h.id] && log[h.id][String(day)] === 'done');
+      var li = document.createElement('li');
+      var lab = document.createElement('label');
+      lab.className = 'tick' + (on ? ' is-on' : '');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = on;
+      cb.dataset.habit = h.id;
+      var span = document.createElement('span');
+      span.textContent = h.name;
+      lab.appendChild(cb);
+      lab.appendChild(span);
+      li.appendChild(lab);
+      sheetList.appendChild(li);
+    });
+  }
+
+  function setHabitDay(habitId, day, on) {
     var md = monthData(true);
     var log = md.log[habitId] || (md.log[habitId] = {});
-    var key = String(day);
-    var next = { empty: 'done', done: 'missed', missed: 'empty' }[log[key] || 'empty'];
-
-    if (next === 'empty') {
-      delete log[key];
+    if (on) log[String(day)] = 'done';
+    else {
+      delete log[String(day)];
       if (!Object.keys(log).length) delete md.log[habitId];
-    } else {
-      log[key] = next;
     }
-
     save();
-    paintMarker(habitId, day);
+    paintMarker(day);
     refreshCounts();
-    announce(markerMap[habitId + ':' + day].g.getAttribute('aria-label'));
+    renderSheetHead();
+    announce(markerMap[day].g.getAttribute('aria-label'));
   }
 
   function toggleFlight(day) {
@@ -1039,6 +1239,7 @@
     }
     save();
     paintDay(day);
+    if (daySheet.open && sheetDay === day) renderSheet();
     announce(day + ' ' + MONTHS[view.m] + (at === -1 ? ' marked as a flight day.' : ' is no longer a flight day.'));
   }
 
@@ -1144,7 +1345,7 @@
 
   markerLayer.addEventListener('click', function (e) {
     var g = e.target.closest('.marker');
-    if (g) cycleMarker(g.dataset.habit, Number(g.dataset.day));
+    if (g) openDay(Number(g.dataset.day));
   });
 
   markerLayer.addEventListener('keydown', function (e) {
@@ -1152,7 +1353,7 @@
     var g = e.target.closest('.marker');
     if (!g) return;
     e.preventDefault();
-    cycleMarker(g.dataset.habit, Number(g.dataset.day));
+    openDay(Number(g.dataset.day));
   });
 
   labelLayer.addEventListener('click', function (e) {
@@ -1164,6 +1365,18 @@
     var b = e.target.closest('button[data-day]');
     if (b) toggleFlight(Number(b.dataset.day));
   });
+
+  sheetList.addEventListener('change', function (e) {
+    var cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    if (isFlight(sheetDay)) { cb.checked = !cb.checked; toast('Clear the flight day first to tick habits.'); return; }
+    cb.closest('.tick').classList.toggle('is-on', cb.checked);
+    setHabitDay(cb.dataset.habit, sheetDay, cb.checked);
+  });
+  sheetFlight.addEventListener('click', function () { toggleFlight(sheetDay); });
+  $('sheetClose').addEventListener('click', function () { daySheet.close(); });
+  daySheet.addEventListener('close', function () { sheetDay = null; });
+  daySheet.addEventListener('click', function (e) { if (e.target === daySheet) daySheet.close(); });
 
   $('prevMonth').addEventListener('click', function () { goMonth(-1); });
   $('nextMonth').addEventListener('click', function () { goMonth(1); });
@@ -1212,6 +1425,7 @@
 
   document.addEventListener('keydown', function (e) {
     if (e.target.matches('input, textarea')) return;
+    if (daySheet.open) return;
     if (e.key === 'ArrowLeft'  && !e.metaKey && !e.ctrlKey) goMonth(-1);
     if (e.key === 'ArrowRight' && !e.metaKey && !e.ctrlKey) goMonth(1);
   });
