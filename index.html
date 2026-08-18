@@ -477,6 +477,8 @@
     color: #3B6D11;
   }
   .note.target-note:empty { display: none; }
+  .note.rate-note { margin: -4px 0 10px; font-size: 11.5px; color: var(--ink-faint); }
+  .note.rate-note:empty { display: none; }
 
   .divider { border: 0; border-top: 1px solid var(--edge-soft); margin: 16px 0; }
 
@@ -643,6 +645,7 @@
       <summary>Habits</summary>
       <div class="panel-body">
         <p class="section-title">Habits &mdash; ticked off per day</p>
+        <p class="note rate-note" id="rateNote"></p>
         <ul class="habit-list" id="habitList"></ul>
 
         <form class="add-row" id="addForm">
@@ -746,6 +749,7 @@
   var liveEl     = $('live');
   var panel      = $('habitsPanel');
   var targetNote = $('targetNote');
+  var rateNote   = $('rateNote');
   var daySheet   = $('daySheet');
   var sheetTitle = $('sheetTitle');
   var sheetScore = $('sheetScore');
@@ -904,18 +908,30 @@
     return sc.done >= requiredForGoal(sc.total) ? 'met' : 'partial';
   }
 
+  /* How much of the viewed month has actually happened. A rate has to be
+     against days that have been and gone, not days that have not arrived —
+     otherwise a flawless month reads worse with every day that passes. Today
+     counts, so ticking today's habits moves the number immediately. */
+  function elapsedDays() {
+    var n = daysInMonth(view.y, view.m);
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    if (new Date(view.y, view.m, n) < t) return n;   // month is entirely past
+    if (new Date(view.y, view.m, 1) > t) return 0;   // month has not started
+    return t.getDate();                              // current month, incl. today
+  }
+
   function counts(habitId) {
     var md = monthData(false);
-    var n = daysInMonth(view.y, view.m);
-    var flights = md.flightDays.filter(function (d) { return d <= n; });
-    var denom = n - flights.length;
+    var upto = elapsedDays();
+    var flights = md.flightDays.filter(function (d) { return d <= upto; });
+    var denom = upto - flights.length;
     var log = md.log[habitId] || {};
     var done = 0;
-    for (var d = 1; d <= n; d++) {
+    for (var d = 1; d <= upto; d++) {
       if (flights.indexOf(d) !== -1) continue;
       if (log[String(d)] === 'done') done++;
     }
-    return { done: done, denom: denom };
+    return { done: done, denom: denom, upto: upto, flights: flights.length };
   }
 
   /* ============================ geometry ============================ */
@@ -1150,8 +1166,10 @@
       var count = document.createElement('span');
       count.className = 'habit-count';
       count.dataset.count = habit.id;
-      count.textContent = c.done + ' / ' + c.denom;
-      count.title = 'Completed days this month, out of non-flight days';
+      count.textContent = c.denom ? (c.done + ' / ' + c.denom) : '—';
+      count.title = c.denom
+        ? 'Days completed out of the ' + c.denom + ' days elapsed so far this month, flight days excluded'
+        : 'This month has not started yet';
 
       var tools = document.createElement('div');
       tools.className = 'habit-tools';
@@ -1188,6 +1206,15 @@
         (total - req === 1 ? ' habit' : ' habits') + ' and still fly green.';
     }
 
+    var n = daysInMonth(view.y, view.m);
+    var upto = elapsedDays();
+    var fl = monthData(false).flightDays.filter(function (d) { return d <= upto; }).length;
+    var flTxt = fl ? ', minus ' + fl + ' flight ' + (fl === 1 ? 'day' : 'days') : '';
+    rateNote.textContent = !upto
+      ? MONTHS[view.m] + ' has not started yet.'
+      : 'Rates cover ' + (upto === n ? 'all ' + n + ' days' : 'the ' + upto + ' days so far') +
+        ' of ' + MONTHS[view.m] + flTxt + '.';
+
     var full = state.habits.length >= MAX_HABITS;
     addInput.disabled = full;
     addBtn.disabled = full;
@@ -1202,7 +1229,7 @@
       var node = habitList.querySelector('[data-count="' + h.id + '"]');
       if (!node) return;
       var c = counts(h.id);
-      node.textContent = c.done + ' / ' + c.denom;
+      node.textContent = c.denom ? (c.done + ' / ' + c.denom) : '—';
     });
   }
 
