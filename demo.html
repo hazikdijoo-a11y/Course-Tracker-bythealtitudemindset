@@ -1,0 +1,1858 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Course Tracker — live demo</title>
+<meta name="description" content="A spiral habit tracker. One turn is a week, each aircraft is a day, and a day flies green once you hit 80% of your habits.">
+<meta name="theme-color" content="#0B1B33">
+
+<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Course Tracker">
+<style>
+  :root {
+    color-scheme: light;
+
+    /* Hazik Fayaz brand kit v1.0 */
+    --navy:   #0B1B33;   /* deep navy      */
+    --gold:   #E8C468;   /* champagne gold */
+    --black:  #0A0A0A;
+    --cream:  #F8F6F0;
+    --gold-deep: #C9A44E;
+
+    /* page */
+    --paper:      var(--cream);
+    --card:       #FFFFFF;
+    --ink:        var(--navy);
+    --ink-soft:   #6B6558;
+    --ink-faint:  #6F6A5D;   /* kit #A8A290 darkened: 2.36:1 fails on cream */
+    --edge:       rgba(11,27,51,.12);
+    --edge-soft:  rgba(11,27,51,.07);
+
+    /* the spiral sits on navy — gold is unusable on light (1.55:1) */
+    --panel:          var(--navy);
+    --on-panel:       var(--cream);
+    --on-panel-soft:  #93A3B8;
+    --guide:          #263A57;
+
+    /* marker states: kit green/red, lifted to read on navy */
+    --empty:  #7C8AA3;
+    --done:   #8FBF3F;
+    --missed: #E87A52;
+    --flight: var(--gold);
+
+    --done-edge:   #639922;
+    --missed-edge: #D85A30;
+    --flight-edge: var(--gold-deep);
+
+    --radius: 16px;
+    --shadow: 0 1px 2px rgba(11,27,51,.05), 0 10px 30px rgba(11,27,51,.07);
+
+    --serif: Georgia, 'DM Serif Display', 'Times New Roman', serif;
+  }
+
+  * { box-sizing: border-box; }
+
+  [hidden] { display: none !important; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.5 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 18px 16px 48px;
+  }
+
+  /* ---------- header ---------- */
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    background: var(--navy);
+    border-radius: var(--radius);
+    padding: 18px 22px;
+    margin-bottom: 20px;
+  }
+
+  .brand-mark {
+    width: 44px; height: 44px;
+    border-radius: 11px;
+    flex: none;
+    background: var(--black);
+  }
+
+  .brand-text { min-width: 0; }
+
+  .app-name {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 25px;
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.1;
+    color: var(--gold);
+  }
+
+  .byline {
+    margin: 2px 0 0;
+    font-size: 10.5px;
+    font-weight: 400;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: rgba(248,246,240,.62);
+  }
+
+  .header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* ---------- buttons ---------- */
+
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 9px;
+    border: 1px solid var(--edge);
+    background: var(--card);
+    padding: 7px 12px;
+    transition: background .12s, border-color .12s;
+  }
+  button:hover:not(:disabled) { background: var(--edge-soft); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible,
+  input:focus-visible,
+  summary:focus-visible { outline: 2px solid var(--navy); outline-offset: 2px; }
+
+  .btn-primary {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: var(--gold);
+    font-weight: 600;
+  }
+  .btn-primary:hover:not(:disabled) { background: var(--black); border-color: var(--black); }
+
+  .btn-danger { color: #993C1D; }
+
+  /* ---------- layout ---------- */
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (min-width: 920px) {
+    main { grid-template-columns: minmax(0, 1fr) 330px; }
+    .spiral-card { grid-column: 1; grid-row: 1; }
+    .days-card   { grid-column: 1; grid-row: 2; }
+    .panel       { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  /* ---------- spiral ---------- */
+
+  .spiral-card { padding: 12px 12px 16px; background: var(--navy); border-color: var(--navy); }
+
+  .spiral-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 620px;
+    margin: 0 auto;
+    container-type: inline-size;
+  }
+
+  #spiral {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    touch-action: manipulation;
+  }
+
+  .sweep-slice { fill: var(--gold); }
+  .sweep-edge  { stroke: var(--gold); stroke-width: 1.4; opacity: .5; }
+  .sweep {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    animation: radar-sweep 8s linear infinite;
+  }
+  @keyframes radar-sweep { to { transform: rotate(360deg); } }
+
+  .ping {
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 1.4;
+    opacity: 0;
+    pointer-events: none;
+    animation: radar-ping 8s linear infinite;
+  }
+  @keyframes radar-ping {
+    0%   { opacity: .75; }
+    9%   { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  .marker { animation: fly-in .5s ease-out backwards; }
+  @keyframes fly-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* pause everything when the tab is hidden — no point burning a phone battery
+     spinning a radar nobody is looking at */
+  .anim-paused .sweep,
+  .anim-paused .ping,
+  .anim-paused .today-ring { animation-play-state: paused; }
+
+  .guide { fill: none; stroke: var(--guide); stroke-width: 1.8; stroke-linecap: round; }
+
+  .dow {
+    fill: var(--on-panel-soft);
+    text-anchor: middle;
+    dominant-baseline: central;
+    letter-spacing: .12em;
+    text-transform: uppercase;
+    font-weight: 600;
+    opacity: .75;
+    pointer-events: none;
+  }
+
+  .marker { cursor: pointer; }
+  .marker .hit { fill: transparent; stroke: none; }
+  .marker use { stroke-linejoin: round; stroke-linecap: round; transition: fill .1s ease; }
+  .marker .badge {
+    fill: var(--on-panel);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-weight: 700;
+    opacity: .9;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .today-ring { fill: none; stroke: none; }
+  .marker.is-today .today-ring {
+    stroke: var(--cream);
+    stroke-width: 1.6;
+    opacity: .8;
+    stroke-dasharray: 5 4;
+    animation: lock-dash 3.5s linear infinite;
+  }
+  @keyframes lock-dash { to { stroke-dashoffset: -36; } }
+  /* days that have not arrived recede, so "not yet" never reads like a result */
+  .marker.is-ahead use   { opacity: .42; }
+  .marker.is-ahead .badge { opacity: .42; }
+  .daylabel.is-ahead text { opacity: .45; }
+  .daylabel.is-today text { fill: var(--cream); font-weight: 700; }
+
+  .marker.s-pending use { fill: none;          stroke: var(--empty);       stroke-width: 1.4; }
+  .marker.s-partial use { fill: none;          stroke: var(--done);        stroke-width: 2.8; }
+  .marker.s-met     use { fill: var(--done);   stroke: var(--done-edge);   stroke-width: 0.8; }
+  .marker.s-missed  use { fill: var(--missed); stroke: var(--missed-edge); stroke-width: 1.6; }
+  .marker.s-flight  use { fill: var(--flight); stroke: var(--flight-edge); stroke-width: 2.2; }
+
+  .marker.s-partial .badge { fill: var(--done); }
+  .marker.s-met     .badge { fill: var(--done); }
+  .marker.s-missed  .badge { fill: var(--missed); }
+  .marker.s-flight  .badge { fill: var(--flight); }
+
+  .marker:hover use { filter: brightness(1.12); }
+  .marker:focus { outline: none; }
+  .marker:focus-visible .hit {
+    stroke: var(--gold);
+    stroke-width: 2;
+    stroke-dasharray: 3 3;
+  }
+
+  .daylabel { cursor: pointer; }
+  .daylabel .hit { fill: transparent; }
+  .daylabel text {
+    fill: var(--on-panel-soft);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+  }
+  .daylabel.is-flight text, .daylabel.is-flight.is-today text { fill: var(--gold); font-weight: 700; }
+  .daylabel:hover text { fill: var(--on-panel); }
+
+  /* month hub, centred in the spiral's hole */
+  .hub {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(var(--hole, .5) * 100%);
+    container-type: inline-size;
+    text-align: center;
+    pointer-events: none;
+  }
+  .hub-month {
+    font-family: var(--serif);
+    color: var(--on-panel);
+    font-size: 16cqw;
+    font-weight: 400;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .hub-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2cqw;
+    margin-top: 1.5cqw;
+  }
+  .hub-year { font-size: 11cqw; color: var(--gold); font-variant-numeric: tabular-nums; letter-spacing: .04em; }
+  .hub-row button {
+    pointer-events: auto;
+    border: none;
+    background: none;
+    padding: 0 2cqw;
+    font-size: 15cqw;
+    line-height: 1;
+    color: rgba(248,246,240,.55);
+    border-radius: 6px;
+  }
+  .hub-row button:hover { background: rgba(248,246,240,.1); color: var(--gold); }
+
+  .spiral-empty {
+    position: absolute;
+    pointer-events: none;   /* never swallow taps aimed at the markers behind it */
+    left: 0; right: 0;
+    top: 64%;
+    text-align: center;
+    color: var(--on-panel-soft);
+    font-size: 14px;
+    padding: 0 24px;
+  }
+
+  /* ---------- day strip ---------- */
+
+  .days-card { padding: 16px; }
+
+  .strip-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 4px 2px 8px;
+  }
+  .strip-head h2 { margin: 0; font-family: var(--serif); font-size: 17px; font-weight: 400; }
+  .strip-head p { margin: 0; font-size: 12px; color: var(--ink-faint); }
+
+  .daystrip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    gap: 5px;
+  }
+  .daystrip button {
+    padding: 8px 0;
+    min-height: 38px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .daystrip button.is-today {
+    border-color: var(--navy);
+    box-shadow: inset 0 0 0 2px var(--navy);
+    font-weight: 700;
+  }
+  .daystrip button.is-ahead { color: var(--ink-faint); }
+
+  .daystrip button[aria-pressed="true"] {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: var(--gold);
+    font-weight: 650;
+  }
+  .daystrip button[aria-pressed="true"]::after { content: " \2708"; }
+
+  /* ---------- legend ---------- */
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid rgba(248,246,240,.14);
+    font-size: 12.5px;
+    color: var(--on-panel-soft);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i {
+    width: 13px; height: 13px;
+    border-radius: 3px;
+    display: inline-block;
+    flex: none;
+  }
+  .lg-empty   { border: 1.5px solid var(--empty); }
+  .lg-partial { border: 2.5px solid var(--done); }
+  .lg-today   { border: 2px dashed var(--cream); border-radius: 50%; }
+  .lg-done   { background: var(--done); }
+  .lg-missed { background: var(--missed); box-shadow: inset 0 0 0 2px var(--missed-edge); }
+  .lg-flight { background: var(--flight); box-shadow: inset 0 0 0 2px var(--flight-edge); }
+
+  /* ---------- habits panel ---------- */
+
+  .panel { padding: 0; }
+  .panel > summary {
+    list-style: none;
+    padding: 13px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: var(--radius);
+  }
+  .panel > summary::-webkit-details-marker { display: none; }
+  .panel > summary::after {
+    content: "\25BE";
+    margin-left: auto;
+    color: var(--ink-faint);
+    transition: transform .15s;
+  }
+  .panel[open] > summary::after { transform: rotate(180deg); }
+  .panel-body { padding: 0 16px 16px; }
+  @media (min-width: 920px) {
+    .panel > summary { display: none; }
+    .panel-body { padding: 16px; }
+  }
+
+  .panel > summary { font-family: var(--serif); font-size: 17px; font-weight: 400; }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 10px;
+  }
+
+  .habit-list {
+    list-style: none; margin: 0 0 12px; padding: 0 2px 0 0;
+    display: grid; gap: 8px;
+    max-height: 46vh; overflow-y: auto;
+  }
+
+  .habit-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid var(--edge);
+    border-radius: 11px;
+    background: var(--paper);
+  }
+
+  .ring-badge {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--ink-soft);
+    background: var(--card);
+    border: 1px solid var(--edge);
+  }
+
+  .habit-name {
+    font: inherit;
+    font-weight: 550;
+    color: inherit;
+    border: none;
+    background: none;
+    padding: 2px 0;
+    min-width: 0;
+    width: 100%;
+    border-bottom: 1px dashed transparent;
+  }
+  .habit-name:hover { border-bottom-color: var(--edge); }
+  .habit-name:focus { outline: none; border-bottom-color: var(--gold-deep); }
+
+  .habit-count {
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .habit-tools { grid-column: 1 / -1; display: flex; gap: 4px; justify-content: flex-end; }
+  .habit-tools button {
+    padding: 3px 8px;
+    font-size: 12px;
+    line-height: 1.3;
+    border-radius: 7px;
+    background: var(--card);
+  }
+
+  .add-row { display: flex; gap: 8px; }
+  .add-row input {
+    font: inherit;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--edge);
+    border-radius: 9px;
+    background: var(--card);
+    color: inherit;
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 8px 0 0;
+    line-height: 1.4;
+  }
+  .note.warn { color: #993C1D; }
+  .note.target-note {
+    margin-top: 10px;
+    padding: 9px 11px;
+    border-radius: 9px;
+    background: rgba(99,153,34,.09);
+    border: 1px solid rgba(99,153,34,.28);
+    color: #3B6D11;
+  }
+  .note.target-note:empty { display: none; }
+  .note.rate-note { margin: -4px 0 10px; font-size: 11.5px; color: var(--ink-faint); }
+  .note.rate-note:empty { display: none; }
+  .note.backup-note { margin-top: 10px; }
+  .note.ios-hint {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: rgba(232,196,104,.16);
+    border: 1px solid var(--gold-deep);
+    color: #6B5312;
+  }
+  .note.ios-hint strong { color: var(--navy); }
+
+  .divider { border: 0; border-top: 1px solid var(--edge-soft); margin: 16px 0; }
+
+  .data-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translate(-50%, 14px);
+    background: var(--black);
+    color: var(--cream);
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    box-shadow: 0 8px 28px rgba(10,10,10,.35);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s, transform .18s;
+    z-index: 20;
+    max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  /* ---------- day sheet ---------- */
+
+  dialog#daySheet {
+    border: none;
+    padding: 0;
+    border-radius: var(--radius);
+    background: var(--card);
+    color: var(--ink);
+    width: min(440px, calc(100vw - 28px));
+    max-height: min(82vh, 760px);
+    box-shadow: 0 24px 70px rgba(11,27,51,.35);
+  }
+  dialog#daySheet::backdrop { background: rgba(11,27,51,.55); }
+
+  .sheet-head {
+    background: var(--navy);
+    color: var(--cream);
+    padding: 18px 20px 16px;
+    position: sticky;
+    top: 0;
+  }
+  .sheet-head h3 {
+    margin: 0;
+    font-family: var(--serif);
+    font-size: 21px;
+    font-weight: 400;
+    color: var(--gold);
+  }
+  .sheet-score {
+    font-size: 26px;
+    font-weight: 700;
+    margin-top: 6px;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: -0.01em;
+  }
+  .sheet-score.s-met     { color: var(--done); }
+  .sheet-score.s-partial { color: var(--done); }
+  .sheet-score.s-missed  { color: var(--missed); }
+  .sheet-score.s-flight  { color: var(--gold); }
+  .sheet-score.s-pending { color: var(--on-panel-soft); }
+  .sheet-verdict { font-size: 12.5px; color: rgba(248,246,240,.7); margin-top: 2px; min-height: 1em; }
+
+  .sheet-tools { display: flex; gap: 8px; padding: 12px 20px 0; }
+  .sheet-tools button { flex: 1; font-size: 13px; }
+  .sheet-tools button[aria-pressed="true"] {
+    background: var(--navy); border-color: var(--navy); color: var(--gold); font-weight: 600;
+  }
+
+  .sheet-body { overflow-y: auto; padding: 12px 20px 20px; }
+  #sheetList { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+
+  .tick {
+    display: flex;
+    align-items: center;
+    gap: 11px;
+    padding: 10px 12px;
+    border: 1px solid var(--edge);
+    border-radius: 10px;
+    cursor: pointer;
+    font-size: 14.5px;
+    min-height: 44px;
+    background: var(--paper);
+  }
+  .tick:hover { border-color: var(--gold-deep); }
+  .tick input { width: 19px; height: 19px; flex: none; accent-color: #639922; cursor: pointer; }
+  .tick.is-on { background: rgba(99,153,34,.09); border-color: rgba(99,153,34,.4); }
+  .tick.is-on span { color: #3B6D11; font-weight: 550; }
+  .tick.is-later { opacity: .5; cursor: not-allowed; background: transparent; border-style: dashed; }
+  .tick.is-later input { cursor: not-allowed; }
+  .tick em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+  .sheet-later { margin: 10px 2px 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.45; }
+  .sheet-later:empty { display: none; }
+
+  .sheet-foot { padding: 0 20px 18px; }
+  .sheet-foot button { width: 100%; }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; animation: none !important; }
+    .sweep, .ping { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app-header">
+    <img class="brand-mark" src="./icon-192.png" alt="">
+    <div class="brand-text">
+      <h1 class="app-name">Course Tracker</h1>
+      <p class="byline">by The Altitude Mindset &middot; demo</p>
+    </div>
+    <div class="header-actions">
+      <button id="installBtn" class="btn-primary" hidden>Install</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card spiral-card" aria-label="Monthly spiral">
+      <div class="spiral-wrap" id="spiralWrap">
+        <svg id="spiral" viewBox="-200 -200 400 400" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="spiralTitle">
+          <title id="spiralTitle">Habit spiral for the selected month</title>
+          <defs>
+            <!-- one aircraft silhouette, nose up, instanced with <use> -->
+            <path id="plane" d="M 0,-11 C 1.1,-9.6 1.9,-7.6 2,-5.2 L 2,-2.1 L 9.4,2.1 L 9.4,4.6 L 2,3.1 L 2,6.9 L 4.6,9.4 L 4.6,11 L 0,9.9 L -4.6,11 L -4.6,9.4 L -2,6.9 L -2,3.1 L -9.4,4.6 L -9.4,2.1 L -2,-2.1 L -2,-5.2 C -1.9,-7.6 -1.1,-9.6 0,-11 Z"/>
+          </defs>
+          <g id="radarLayer" aria-hidden="true"></g>
+          <g id="guideLayer"></g>
+          <g id="labelLayer"></g>
+          <g id="markerLayer"></g>
+        </svg>
+
+        <div class="hub" id="hub">
+          <div class="hub-month" id="hubMonth">Month</div>
+          <div class="hub-row">
+            <button type="button" id="prevMonth" aria-label="Previous month">&lsaquo;</button>
+            <span class="hub-year" id="hubYear">0000</span>
+            <button type="button" id="nextMonth" aria-label="Next month">&rsaquo;</button>
+          </div>
+        </div>
+
+        <div class="spiral-empty" id="spiralEmpty" hidden>
+          Add a habit to start scoring your days.
+        </div>
+      </div>
+
+      <div class="legend" aria-label="Legend">
+        <span><i class="lg-empty"></i> Not yet</span>
+        <span><i class="lg-partial"></i> Partly done &#9680;</span>
+        <span><i class="lg-done"></i> Target met &#10003;</span>
+        <span><i class="lg-missed"></i> Missed &#10005;</span>
+        <span><i class="lg-flight"></i> Flight day &#9992;</span>
+        <span><i class="lg-today"></i> Today</span>
+      </div>
+    </section>
+
+
+    <details class="card panel" id="habitsPanel" open>
+      <summary>Habits</summary>
+      <div class="panel-body">
+        <p class="section-title">Habits &mdash; ticked off per day</p>
+        <p class="note rate-note" id="rateNote"></p>
+        <ul class="habit-list" id="habitList"></ul>
+
+        <form class="add-row" id="addForm">
+          <input id="addInput" type="text" maxlength="40" placeholder="New habit&hellip;" aria-label="New habit name" autocomplete="off">
+          <button type="submit" class="btn-primary" id="addBtn">Add</button>
+        </form>
+        <p class="note" id="addNote"></p>
+        <p class="note target-note" id="targetNote"></p>
+
+        <hr class="divider">
+
+        <p class="section-title">Data</p>
+        <div class="data-tools">
+          <button type="button" id="exportBtn">Export&hellip;</button>
+          <button type="button" id="importBtn">Import&hellip;</button>
+          <button type="button" id="resetBtn" class="btn-danger">Reset month</button>
+        </div>
+        <p class="note backup-note" id="backupNote"></p>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <p class="note">
+          No account, no server &mdash; everything lives on this device. Export to a
+          <code>.json</code> file to carry your history to another phone or laptop.
+        </p>
+        <p class="note ios-hint" id="iosHint" hidden>
+          <strong>Add this to your Home Screen.</strong> Until you do, iOS clears
+          the storage of a site you haven&rsquo;t opened in 7 days &mdash; which would
+          take your history with it. Tap Share, then <em>Add to Home Screen</em>.
+        </p>
+      </div>
+    </details>
+
+    <section class="card days-card" aria-label="Days">
+      <div class="strip-head">
+        <h2>Flight days</h2>
+        <p>Tap a date to mark it a flight day. Excluded from every habit&rsquo;s total.</p>
+      </div>
+      <div class="daystrip" id="dayStrip"></div>
+    </section>
+  </main>
+</div>
+
+<dialog id="daySheet" aria-labelledby="sheetTitle">
+  <div class="sheet-head">
+    <h3 id="sheetTitle">Day</h3>
+    <div class="sheet-score" id="sheetScore">0 / 0</div>
+    <div class="sheet-verdict" id="sheetVerdict"></div>
+  </div>
+  <div class="sheet-tools">
+    <button type="button" id="sheetFlight" aria-pressed="false">Mark as flight day</button>
+  </div>
+  <div class="sheet-body">
+    <ul id="sheetList"></ul>
+    <p class="sheet-later" id="sheetLater"></p>
+  </div>
+  <div class="sheet-foot">
+    <button type="button" id="sheetClose" class="btn-primary">Done</button>
+  </div>
+</dialog>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================ constants ============================ */
+
+  var STORAGE_KEY = 'course-tracker.demo.v1';
+  var DEMO_SEED = {"version":1,"habits":[{"id":"h1","name":"Fajr","createdOn":"2026-08-01"},{"id":"h2","name":"Hydrate 3L","createdOn":"2026-08-01"},{"id":"h3","name":"Gym","createdOn":"2026-08-01"},{"id":"h4","name":"Ground school","createdOn":"2026-08-01"},{"id":"h5","name":"Sim practice","createdOn":"2026-08-01"},{"id":"h6","name":"Charts review","createdOn":"2026-08-01"},{"id":"h7","name":"Read 20pp","createdOn":"2026-08-01"},{"id":"h8","name":"Journal","createdOn":"2026-08-01"},{"id":"h9","name":"Meditate","createdOn":"2026-08-01"},{"id":"h10","name":"Plan tomorrow","createdOn":"2026-08-01"},{"id":"h11","name":"Steps 8k","createdOn":"2026-08-01"},{"id":"h12","name":"Sleep by 11","createdOn":"2026-08-01"}],"months":{"2026-08":{"flightDays":[6,7,17],"log":{"h1":{"1":"done","2":"done","3":"done","4":"done","5":"done","8":"done","9":"done","10":"done","11":"done","12":"done","14":"done","16":"done","18":"done"},"h2":{"1":"done","2":"done","3":"done","4":"done","5":"done","8":"done","9":"done","10":"done","11":"done","14":"done","15":"done","16":"done","18":"done"},"h3":{"1":"done","2":"done","3":"done","5":"done","8":"done","9":"done","10":"done","11":"done","15":"done","16":"done","18":"done"},"h4":{"1":"done","2":"done","3":"done","5":"done","8":"done","10":"done","11":"done","14":"done","15":"done","16":"done","18":"done"},"h5":{"1":"done","2":"done","3":"done","5":"done","8":"done","10":"done","11":"done","14":"done","15":"done","16":"done","18":"done"},"h6":{"1":"done","2":"done","3":"done","5":"done","8":"done","10":"done","11":"done","14":"done","15":"done","16":"done","18":"done"},"h7":{"1":"done","2":"done","3":"done","5":"done","8":"done","10":"done","11":"done","14":"done","15":"done","16":"done","18":"done"},"h8":{"1":"done","2":"done","3":"done","4":"done","5":"done","8":"done","10":"done","11":"done","12":"done","14":"done","15":"done","16":"done","18":"done"},"h9":{"1":"done","2":"done","4":"done","5":"done","8":"done","10":"done","12":"done","14":"done","15":"done","16":"done","18":"done"},"h10":{"1":"done","2":"done","3":"done","4":"done","5":"done","8":"done","10":"done","11":"done","12":"done","14":"done","15":"done","16":"done"},"h11":{"1":"done","3":"done","4":"done","5":"done","8":"done","10":"done","11":"done","12":"done","14":"done","15":"done","16":"done","18":"done"},"h12":{"1":"done","2":"done","3":"done","4":"done","5":"done","8":"done","10":"done","11":"done","12":"done","14":"done","15":"done","16":"done","18":"done"}}}},"lastExport":"2026-08-17"};
+  var MAX_HABITS  = 60;
+  var DAYS_PER_TURN = 7;   /* one turn of the spiral = one week */
+  var GOAL = 0.8;          /* >= 80% of habits ticked -> the aircraft flies green */
+
+  var R0        = 110;   // radius at theta=0 of the first turn
+  var DR        = 58;    // radius gained per full turn
+  var PLANE_LEN = 22;    // nose-to-tail length of the silhouette, in viewBox units
+  var SCALE     = 2.0;   // 7 markers a turn leaves room for a much bigger plane
+  var PAD       = 92;    // room outside for day numbers + the weekday ring
+
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var TWO_PI = Math.PI * 2;
+
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'];
+
+  var BADGE = { met: '✓', partial: '◐', missed: '✕', flight: '✈' };
+  var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  /* ============================ elements ============================ */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var svg        = $('spiral');
+  var radarLayer = $('radarLayer');
+  var guideLayer = $('guideLayer');
+  var labelLayer = $('labelLayer');
+  var markerLayer= $('markerLayer');
+  var spiralWrap = $('spiralWrap');
+  var spiralEmpty= $('spiralEmpty');
+  var hubMonth   = $('hubMonth');
+  var hubYear    = $('hubYear');
+  var dayStrip   = $('dayStrip');
+  var habitList  = $('habitList');
+  var addForm    = $('addForm');
+  var addInput   = $('addInput');
+  var addBtn     = $('addBtn');
+  var addNote    = $('addNote');
+  var toastEl    = $('toast');
+  var liveEl     = $('live');
+  var panel      = $('habitsPanel');
+  var targetNote = $('targetNote');
+  var rateNote   = $('rateNote');
+  var sheetLater = $('sheetLater');
+  var daySheet   = $('daySheet');
+  var sheetTitle = $('sheetTitle');
+  var sheetScore = $('sheetScore');
+  var sheetVerdict = $('sheetVerdict');
+  var sheetFlight  = $('sheetFlight');
+  var sheetList    = $('sheetList');
+  var sheetDay     = null;
+  var focusDay     = 1;
+  var backupNote = $('backupNote');
+  var iosHint    = $('iosHint');
+
+  /* ============================ state ============================ */
+
+  var today = new Date();
+  var view  = { y: today.getFullYear(), m: today.getMonth() };
+
+  var state = loadState();
+  var markerMap = {};   // "habitId:day" -> { g: <g>, badge: <text> }
+  var labelMap  = {};   // day -> [<g>, ...]
+
+  function freshState() {
+    return JSON.parse(JSON.stringify(DEMO_SEED));
+  }
+
+  function newId() {
+    return 'h' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return freshState();
+      var parsed = JSON.parse(raw);
+      var clean = sanitize(parsed);
+      if (!clean.habits.length && !Object.keys(clean.months).length) return freshState();
+      return clean;
+    } catch (err) {
+      console.warn('Course Tracker: could not read saved data, starting fresh.', err);
+      return freshState();
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (err) {
+      toast('Could not save — storage is unavailable or full.');
+    }
+  }
+
+  /* Accepts anything; returns a state object that is safe to render. */
+  function sanitize(obj) {
+    var out = { version: 1, habits: [], months: {}, lastExport: null };
+    if (!obj || typeof obj !== 'object') return out;
+    if (typeof obj.lastExport === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(obj.lastExport)) {
+      out.lastExport = obj.lastExport;
+    }
+
+    var seen = {};
+    if (Array.isArray(obj.habits)) {
+      obj.habits.forEach(function (h, i) {
+        if (out.habits.length >= MAX_HABITS) return;
+        if (!h || typeof h !== 'object' || typeof h.name !== 'string') return;
+        var id = (typeof h.id === 'string' && h.id) ? h.id : ('h' + (i + 1));
+        while (seen[id]) id = id + '_';
+        seen[id] = true;
+        var rec = { id: id, name: h.name.slice(0, 40) || 'Untitled' };
+        if (typeof h.createdOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h.createdOn)) {
+          rec.createdOn = h.createdOn;
+        }
+        out.habits.push(rec);
+      });
+    }
+
+    if (obj.months && typeof obj.months === 'object') {
+      Object.keys(obj.months).forEach(function (key) {
+        if (!/^\d{4}-\d{2}$/.test(key)) return;
+        var src = obj.months[key] || {};
+        var flight = [];
+        if (Array.isArray(src.flightDays)) {
+          src.flightDays.forEach(function (n) {
+            n = Number(n);
+            if (Number.isInteger(n) && n >= 1 && n <= 31 && flight.indexOf(n) === -1) flight.push(n);
+          });
+        }
+        var log = {};
+        if (src.log && typeof src.log === 'object') {
+          Object.keys(src.log).forEach(function (hid) {
+            var days = src.log[hid];
+            if (!days || typeof days !== 'object') return;
+            var kept = {};
+            Object.keys(days).forEach(function (d) {
+              if (!/^([1-9]|[12]\d|3[01])$/.test(d)) return;
+              /* 'missed' was a stored value under the old three-state tap cycle.
+                 Nothing has written it since the day-sheet model replaced that,
+                 and under the current rules an explicit 'missed' is
+                 indistinguishable from an absent key — both mean "not done".
+                 Dropped on the way in rather than left sitting in storage being
+                 silently ignored. */
+              if (days[d] === 'done') kept[d] = 'done';
+            });
+            if (Object.keys(kept).length) log[hid] = kept;
+          });
+        }
+        if (flight.length || Object.keys(log).length) {
+          out.months[key] = { flightDays: flight.sort(function (a, b) { return a - b; }), log: log };
+        }
+      });
+    }
+    return out;
+  }
+
+  /* ============================ date helpers ============================ */
+
+  function monthKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+  function dayKey(day) { return monthKey(view.y, view.m) + '-' + String(day).padStart(2, '0'); }
+  function todayKey() {
+    var t = new Date();
+    return monthKey(t.getFullYear(), t.getMonth()) + '-' + String(t.getDate()).padStart(2, '0');
+  }
+
+  /* Habits carry the date they were added. A habit with no createdOn predates
+     this field and counts everywhere, so existing data scores exactly as before. */
+  function habitStart(h) { return h.createdOn || '0000-01-01'; }
+  function isActiveOn(h, day) { return habitStart(h) <= dayKey(day); }
+  function activeHabits(day) {
+    return state.habits.filter(function (h) { return isActiveOn(h, day); });
+  }
+  function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+  function monthData(create) {
+    var key = monthKey(view.y, view.m);
+    if (!state.months[key]) {
+      if (!create) return { flightDays: [], log: {} };
+      state.months[key] = { flightDays: [], log: {} };
+    }
+    return state.months[key];
+  }
+
+  function isFlight(day) { return monthData(false).flightDays.indexOf(day) !== -1; }
+
+  /* How much of the day's habit list got ticked. */
+  /* Scored against the habits that existed on that day, never today's list —
+     otherwise adding a habit retroactively re-marks every day of the month. */
+  function dayScore(day) {
+    var log = monthData(false).log;
+    var active = activeHabits(day);
+    var done = 0;
+    active.forEach(function (h) {
+      var d = log[h.id];
+      if (d && d[String(day)] === 'done') done++;
+    });
+    var total = active.length;
+    return { done: done, total: total, pct: total ? done / total : 0 };
+  }
+
+  /* 80% of the list, but you may always miss one. Below 5 habits a flat 80%
+     silently means "all of them, every day" — 1/2, 2/3 and 3/4 all fall short
+     of the bar — so the grace of one miss is what makes the target real at
+     small habit counts. At 5+ this is identical to plain >= 80%. */
+  function requiredForGoal(total) {
+    if (total <= 1) return total;
+    return Math.max(1, Math.min(Math.ceil(total * GOAL), total - 1));
+  }
+
+  /* The day number if today falls inside the month being viewed, else null. */
+  function todayInView() {
+    var t = new Date();
+    return (t.getFullYear() === view.y && t.getMonth() === view.m) ? t.getDate() : null;
+  }
+  function isAhead(day) { return !isPast(day) && day !== todayInView(); }
+
+  function isPast(day) {
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    return new Date(view.y, view.m, day) < t;
+  }
+
+  /* Flight day still overrides the display and preserves what is underneath.
+     Grey means "not yet" — today and anything ahead of it. A day that has
+     already been and gone with nothing ticked is a miss, not a blank. */
+  function dayState(day) {
+    if (isFlight(day)) return 'flight';
+    var sc = dayScore(day);
+    if (!sc.total) return 'pending';
+    if (!sc.done) return isPast(day) ? 'missed' : 'pending';
+    return sc.done >= requiredForGoal(sc.total) ? 'met' : 'partial';
+  }
+
+  /* How much of the viewed month has actually happened. A rate has to be
+     against days that have been and gone, not days that have not arrived —
+     otherwise a flawless month reads worse with every day that passes. Today
+     counts, so ticking today's habits moves the number immediately. */
+  function elapsedDays() {
+    var n = daysInMonth(view.y, view.m);
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    if (new Date(view.y, view.m, n) < t) return n;   // month is entirely past
+    if (new Date(view.y, view.m, 1) > t) return 0;   // month has not started
+    return t.getDate();                              // current month, incl. today
+  }
+
+  function counts(habitId) {
+    var md = monthData(false);
+    var upto = elapsedDays();
+    var flights = md.flightDays.filter(function (d) { return d <= upto; });
+    var denom = upto - flights.length;
+    var log = md.log[habitId] || {};
+    var habit = state.habits.filter(function (h) { return h.id === habitId; })[0];
+    var done = 0;
+    denom = 0;
+    for (var d = 1; d <= upto; d++) {
+      if (flights.indexOf(d) !== -1) continue;
+      if (habit && !isActiveOn(habit, d)) continue;   // before this habit existed
+      denom++;
+      if (log[String(d)] === 'done') done++;
+    }
+    return { done: done, denom: denom, upto: upto, flights: flights.length };
+  }
+
+  /* ============================ geometry ============================ */
+
+  /* u is the continuous turn parameter: habit index + fraction through the month. */
+  function pointAt(u) {
+    var th = TWO_PI * u;
+    var r  = R0 + DR * u;
+    return {
+      r: r,
+      th: th,
+      x: r * Math.sin(th),
+      y: -r * Math.cos(th),
+      /* outward radial unit vector */
+      ux: Math.sin(th),
+      uy: -Math.cos(th),
+      /* tangent, as an SVG rotate() angle for a nose-up silhouette */
+      angle: Math.atan2(DR * Math.sin(th) + r * TWO_PI * Math.cos(th),
+                        DR * Math.cos(th) - r * TWO_PI * Math.sin(th)) * 180 / Math.PI
+    };
+  }
+
+  /* the spiral now spans the month's weeks, not the habit list */
+  function turnsThisMonth() { return (daysInMonth(view.y, view.m) - 1) / DAYS_PER_TURN; }
+  function outerRadius() { return R0 + DR * turnsThisMonth(); }
+  function firstDow() { return new Date(view.y, view.m, 1).getDay(); }
+
+  function el(tag, attrs) {
+    var node = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, k)) node.setAttribute(k, attrs[k]);
+    }
+    return node;
+  }
+
+  /* ============================ rendering ============================ */
+
+  function renderAll() {
+    var n = daysInMonth(view.y, view.m);
+
+    hubMonth.textContent = MONTHS[view.m];
+    hubYear.textContent  = String(view.y);
+
+    var span = outerRadius() + PAD;
+    svg.setAttribute('viewBox', (-span) + ' ' + (-span) + ' ' + (span * 2) + ' ' + (span * 2));
+    spiralWrap.style.setProperty('--hole', (R0 * 0.92 / span).toFixed(4));
+    spiralEmpty.hidden = state.habits.length > 0;
+
+    buildRadar();
+    buildGuide();
+    buildMarkers(n);
+    buildDayStrip(n);
+    buildHabitList();
+    renderBackupNote();
+  }
+
+  var SWEEP_SECONDS = 8;
+
+  /* A radar sweep: a bright leading edge with a decaying wedge behind it. The
+     trail is built from thin constant-opacity slices rather than a gradient,
+     because a linear gradient cannot follow an arc. */
+  function buildRadar() {
+    radarLayer.textContent = '';
+    var R = outerRadius() + 48;
+    var g = el('g', { class: 'sweep' });
+
+    function polar(r, deg) {
+      var th = deg * Math.PI / 180;
+      return { x: r * Math.sin(th), y: -r * Math.cos(th) };
+    }
+
+    var slices = 16, span = 3.6;
+    for (var i = 0; i < slices; i++) {
+      var a1 = -i * span, a0 = a1 - span;
+      var p0 = polar(R, a0), p1 = polar(R, a1);
+      radarSlice(g, 'M0,0 L' + p0.x.toFixed(2) + ',' + p0.y.toFixed(2) +
+        ' A' + R.toFixed(2) + ',' + R.toFixed(2) + ' 0 0 1 ' +
+        p1.x.toFixed(2) + ',' + p1.y.toFixed(2) + ' Z',
+        (0.085 * (1 - i / slices)).toFixed(3));
+    }
+    g.appendChild(el('line', { class: 'sweep-edge', x1: 0, y1: 0, x2: 0, y2: (-R).toFixed(2) }));
+    radarLayer.appendChild(g);
+
+    function radarSlice(parent, d, op) {
+      parent.appendChild(el('path', { class: 'sweep-slice', d: d, opacity: op }));
+    }
+  }
+
+  function buildGuide() {
+    guideLayer.textContent = '';
+    var turns = turnsThisMonth();
+    var d = '';
+    var steps = Math.round(turns * 240);
+    for (var i = 0; i <= steps; i++) {
+      var p = pointAt((i / steps) * turns);
+      d += (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ' ';
+    }
+    guideLayer.appendChild(el('path', { d: d, class: 'guide' }));
+
+    /* Every turn is a week, so a day's angle is its weekday — label the spokes. */
+    var out = outerRadius() + 64, dow = firstDow();
+    for (var k = 0; k < DAYS_PER_TURN; k++) {
+      var th = TWO_PI * k / DAYS_PER_TURN;
+      var t = el('text', {
+        class: 'dow',
+        x: (out * Math.sin(th)).toFixed(2),
+        y: (-out * Math.cos(th)).toFixed(2),
+        'font-size': '14'
+      });
+      t.textContent = DOW[(dow + k) % 7];
+      guideLayer.appendChild(t);
+    }
+  }
+
+  /* Roving tabindex: the month's markers are ONE tab stop, not 31. Arrow keys
+     move between days, PageUp/PageDown jump a week, Home/End to the ends. */
+  function setFocusDay(day, moveFocus) {
+    var n = daysInMonth(view.y, view.m);
+    day = Math.max(1, Math.min(n, day));
+    focusDay = day;
+    Object.keys(markerMap).forEach(function (k) {
+      markerMap[k].g.setAttribute('tabindex', Number(k) === day ? '0' : '-1');
+    });
+    if (moveFocus && markerMap[day]) markerMap[day].g.focus();
+  }
+
+  function buildMarkers(n) {
+    focusDay = Math.min(todayInView() || 1, n);
+    markerLayer.textContent = '';
+    labelLayer.textContent = '';
+    markerMap = {};
+    labelMap = {};
+
+    var reach = PLANE_LEN * 0.5 * SCALE;
+
+    for (var day = 1; day <= n; day++) {
+      var p = pointAt((day - 1) / DAYS_PER_TURN);
+      /* Space around a marker is asymmetric: wide along the turn (the gap to the
+         next day) but only DR across it (the gap to the same weekday a week on).
+         An ellipse aligned to the tangent uses all of the former without
+         overlapping the latter — a circle big enough for one overlaps the other. */
+      var spacing = TWO_PI * p.r / DAYS_PER_TURN;
+      var hitAlong  = Math.min(spacing * 0.48, 62);
+      var hitAcross = DR * 0.48;
+
+      var g = el('g', {
+        class: 'marker',
+        transform: 'translate(' + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ')',
+        role: 'button',
+        tabindex: day === focusDay ? '0' : '-1'
+      });
+      g.dataset.day = String(day);
+
+      /* The ping is delayed by exactly where this marker sits on the dial, so
+         it lights as the sweep crosses it — no JS timer, and every day on the
+         same weekday spoke pings together. A negative delay starts it already
+         in phase instead of waiting a full revolution. */
+      var phase = ((day - 1) % DAYS_PER_TURN) / DAYS_PER_TURN;
+      var ping = el('circle', { class: 'ping', r: (reach + 9).toFixed(1) });
+      /* 4 decimals, not 2: rounding this to hundredths puts the ping a few ms
+         out of phase with the sweep, which is exactly the sort of drift that
+         makes a synced effect look almost-right. */
+      ping.style.animationDelay = (-SWEEP_SECONDS * (1 - phase)).toFixed(4) + 's';
+      g.appendChild(ping);
+
+      g.appendChild(el('circle', { class: 'today-ring', r: (reach + 5).toFixed(1) }));
+      g.appendChild(el('ellipse', {
+        class: 'hit',
+        rx: hitAcross.toFixed(1),
+        ry: hitAlong.toFixed(1),
+        transform: 'rotate(' + p.angle.toFixed(2) + ')'
+      }));
+      g.appendChild(el('use', {
+        href: '#plane',
+        transform: 'rotate(' + p.angle.toFixed(2) + ') scale(' + SCALE + ')'
+      }));
+
+      var bOff = reach + 11;
+      var badge = el('text', {
+        class: 'badge',
+        x: (-p.ux * bOff).toFixed(2),
+        y: (-p.uy * bOff).toFixed(2),
+        'font-size': '13'
+      });
+      g.appendChild(badge);
+
+      g.style.animationDelay = (day * 0.014).toFixed(3) + 's';
+      markerLayer.appendChild(g);
+      markerMap[day] = { g: g, badge: badge, today: day === todayInView(), ahead: isAhead(day) };
+
+      /* Day number, just outside the marker on the outer side of the turn.
+         Deliberately aria-hidden with tabindex="-1": it is a pointer shortcut
+         for toggling a flight day, and making 31 of them focusable would bury
+         the real controls. The day strip below the spiral is the accessible,
+         keyboard-reachable equivalent — this is not an oversight. */
+      var lOff = reach + 15;
+      var lg = el('g', { class: 'daylabel', tabindex: '-1', 'aria-hidden': 'true' });
+      lg.dataset.day = String(day);
+      lg.setAttribute('transform',
+        'translate(' + (p.x + p.ux * lOff).toFixed(2) + ',' + (p.y + p.uy * lOff).toFixed(2) + ')');
+      lg.appendChild(el('circle', { class: 'hit', r: '12' }));
+      if (day === todayInView()) lg.classList.add('is-today');
+      else if (isAhead(day)) lg.classList.add('is-ahead');
+      var t = el('text', { 'font-size': '14' });
+      t.textContent = String(day);
+      lg.appendChild(t);
+      labelLayer.appendChild(lg);
+      labelMap[day] = [lg];
+
+      paintMarker(day);
+    }
+
+    paintAllLabels();
+  }
+
+  function paintMarker(day) {
+    var ref = markerMap[day];
+    if (!ref) return;
+
+    var st = dayState(day);
+    ref.g.setAttribute('class', 'marker s-' + st +
+      (ref.today ? ' is-today' : '') + (ref.ahead ? ' is-ahead' : ''));
+    ref.badge.textContent = BADGE[st] || '';
+
+    var sc = dayScore(day);
+    var pct = Math.round(sc.pct * 100);
+    var date = (ref.today ? 'Today, ' : '') + day + ' ' + MONTHS[view.m];
+    var label;
+    if (st === 'flight') {
+      label = date + ', flight day';
+      if (sc.done) label += ' (' + sc.done + ' of ' + sc.total + ' still ticked underneath)';
+    } else if (!sc.total) {
+      label = date + ', no habits yet';
+    } else if (st === 'missed') {
+      label = date + ', nothing ticked, missed';
+    } else if (st === 'pending') {
+      label = date + ', not logged yet';
+    } else {
+      label = date + ', ' + sc.done + ' of ' + sc.total + ' habits, ' + pct + ' percent, ' +
+              (st === 'met' ? 'target met' : 'partly done, target is ' +
+               requiredForGoal(sc.total) + ' of ' + sc.total);
+    }
+    ref.g.setAttribute('aria-label', label);
+  }
+
+  function paintDay(day) {
+    paintMarker(day);
+    paintLabel(day);
+    var btn = dayStrip.querySelector('[data-day="' + day + '"]');
+    if (btn) btn.setAttribute('aria-pressed', isFlight(day) ? 'true' : 'false');
+    refreshCounts();
+  }
+
+  function paintLabel(day) {
+    var on = isFlight(day);
+    var extra = day === todayInView() ? ' is-today' : (isAhead(day) ? ' is-ahead' : '');
+    (labelMap[day] || []).forEach(function (g) {
+      g.setAttribute('class', 'daylabel' + (on ? ' is-flight' : '') + extra);
+    });
+  }
+
+  function paintAllLabels() {
+    Object.keys(labelMap).forEach(function (d) { paintLabel(Number(d)); });
+  }
+
+  function buildDayStrip(n) {
+    dayStrip.textContent = '';
+    for (var d = 1; d <= n; d++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.day = String(d);
+      b.textContent = String(d);
+      b.setAttribute('aria-pressed', isFlight(d) ? 'true' : 'false');
+      b.setAttribute('aria-label', d + ' ' + MONTHS[view.m] + ', flight day');
+      if (d === todayInView()) { b.classList.add('is-today'); b.title = 'Today'; }
+      else if (isAhead(d)) b.classList.add('is-ahead');
+      dayStrip.appendChild(b);
+    }
+  }
+
+  function buildHabitList() {
+    habitList.textContent = '';
+
+    state.habits.forEach(function (habit, i) {
+      var c = counts(habit.id);
+
+      var li = document.createElement('li');
+      li.className = 'habit-row';
+      li.dataset.id = habit.id;
+
+      var ring = document.createElement('span');
+      ring.className = 'ring-badge';
+      ring.textContent = String(i + 1);
+      ring.title = 'Habit ' + (i + 1) + ' of ' + state.habits.length;
+
+      var input = document.createElement('input');
+      input.className = 'habit-name';
+      input.type = 'text';
+      input.maxLength = 40;
+      input.value = habit.name;
+      input.setAttribute('aria-label', 'Rename habit ' + habit.name);
+
+      var count = document.createElement('span');
+      count.className = 'habit-count';
+      count.dataset.count = habit.id;
+      count.textContent = c.denom ? (c.done + ' / ' + c.denom) : '—';
+      count.title = c.denom
+        ? 'Days completed out of the ' + c.denom + ' days elapsed so far this month, flight days excluded'
+        : 'This month has not started yet';
+
+      var tools = document.createElement('div');
+      tools.className = 'habit-tools';
+      [
+        ['up',   '↑', 'Move ' + habit.name + ' up',   i === 0],
+        ['down', '↓', 'Move ' + habit.name + ' down', i === state.habits.length - 1],
+        ['del',  '✕', 'Delete ' + habit.name,         false]
+      ].forEach(function (spec) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.act = spec[0];
+        b.textContent = spec[1];
+        b.setAttribute('aria-label', spec[2]);
+        b.disabled = spec[3];
+        tools.appendChild(b);
+      });
+
+      li.appendChild(ring);
+      li.appendChild(input);
+      li.appendChild(count);
+      li.appendChild(tools);
+      habitList.appendChild(li);
+    });
+
+    var total = state.habits.length;
+    if (!total) {
+      targetNote.textContent = '';
+    } else if (total === 1) {
+      targetNote.textContent = 'Daily target: your one habit, every day.';
+    } else {
+      var req = requiredForGoal(total);
+      targetNote.textContent = 'Daily target: ' + req + ' of ' + total +
+        ' (' + Math.round(req / total * 100) + '%) — you can miss ' + (total - req) +
+        (total - req === 1 ? ' habit' : ' habits') + ' and still fly green.';
+    }
+
+    var n = daysInMonth(view.y, view.m);
+    var upto = elapsedDays();
+    var fl = monthData(false).flightDays.filter(function (d) { return d <= upto; }).length;
+    var flTxt = fl ? ', minus ' + fl + ' flight ' + (fl === 1 ? 'day' : 'days') : '';
+    var mk = monthKey(view.y, view.m);
+    var midMonth = state.habits.some(function (h) { return h.createdOn && h.createdOn.slice(0, 7) >= mk; });
+    rateNote.textContent = !upto
+      ? MONTHS[view.m] + ' has not started yet.'
+      : 'Rates cover ' + (upto === n ? 'all ' + n + ' days' : 'the ' + upto + ' days so far') +
+        ' of ' + MONTHS[view.m] + flTxt + '.' +
+        (midMonth ? ' Habits added mid-month count only from the day you added them.' : '');
+
+    var full = state.habits.length >= MAX_HABITS;
+    addInput.disabled = full;
+    addBtn.disabled = full;
+    addNote.className = 'note' + (full ? ' warn' : '');
+    addNote.textContent = full
+      ? MAX_HABITS + ' habits is the cap — delete one to add another.'
+      : (MAX_HABITS - state.habits.length) + ' of ' + MAX_HABITS + ' slots left.';
+  }
+
+  function refreshCounts() {
+    state.habits.forEach(function (h) {
+      var node = habitList.querySelector('[data-count="' + h.id + '"]');
+      if (!node) return;
+      var c = counts(h.id);
+      node.textContent = c.denom ? (c.done + ' / ' + c.denom) : '—';
+    });
+  }
+
+  /* ============================ actions ============================ */
+
+  function openDay(day) {
+    sheetDay = day;
+    renderSheet();
+    if (typeof daySheet.showModal === 'function') daySheet.showModal();
+    else daySheet.setAttribute('open', '');
+  }
+
+  /* Header only. Never rebuilds the list, so ticking never destroys the
+     checkbox under the user's finger or steals keyboard focus. */
+  function renderSheetHead() {
+    var day = sheetDay;
+    if (!day) return;
+    var sc = dayScore(day);
+    var pct = Math.round(sc.pct * 100);
+    var flight = isFlight(day);
+    var dow = DOW[new Date(view.y, view.m, day).getDay()];
+
+    sheetTitle.textContent = dow + ' ' + day + ' ' + MONTHS[view.m];
+    sheetScore.textContent = sc.total
+      ? sc.done + ' / ' + sc.total + '  ·  ' + pct + '%'
+      : 'No habits yet';
+    var st = dayState(day);
+    sheetScore.className = 'sheet-score s-' + st;
+    sheetVerdict.textContent = {
+      flight:  'Flight day — excluded from your totals',
+      met:     'Target met — flying green',
+      partial: 'Partly done — ' + (requiredForGoal(sc.total) - sc.done) +
+               ' more to reach ' + requiredForGoal(sc.total) + ' / ' + sc.total,
+      missed:  'Nothing ticked on this day',
+      pending: sc.total ? 'Nothing ticked yet' : ''
+    }[st] || '';
+
+    sheetFlight.setAttribute('aria-pressed', flight ? 'true' : 'false');
+    sheetFlight.textContent = flight ? '✈  Flight day — tap to clear' : 'Mark as flight day';
+  }
+
+  function renderSheet() {
+    var day = sheetDay;
+    if (!day) return;
+    renderSheetHead();
+
+    var log = monthData(false).log;
+    sheetList.textContent = '';
+    var later = 0;
+    state.habits.forEach(function (h) {
+      var live = isActiveOn(h, day);
+      if (!live) later++;
+      var on = !!(log[h.id] && log[h.id][String(day)] === 'done');
+      var li = document.createElement('li');
+      var lab = document.createElement('label');
+      lab.className = 'tick' + (on ? ' is-on' : '') + (live ? '' : ' is-later');
+      var cb = document.createElement('input');
+      cb.type = 'checkbox';
+      cb.checked = on && live;
+      cb.disabled = !live;
+      cb.dataset.habit = h.id;
+      var span = document.createElement('span');
+      span.textContent = h.name;
+      lab.appendChild(cb);
+      lab.appendChild(span);
+      if (!live) {
+        var tag = document.createElement('em');
+        tag.textContent = 'added later';
+        lab.appendChild(tag);
+      }
+      li.appendChild(lab);
+      sheetList.appendChild(li);
+    });
+    sheetLater.textContent = later
+      ? later + (later === 1 ? ' habit did' : ' habits did') + ' not exist yet on this day, so it is not scored against ' + (later === 1 ? 'it' : 'them') + '.'
+      : '';
+  }
+
+  function setHabitDay(habitId, day, on) {
+    var md = monthData(true);
+    var log = md.log[habitId] || (md.log[habitId] = {});
+    if (on) log[String(day)] = 'done';
+    else {
+      delete log[String(day)];
+      if (!Object.keys(log).length) delete md.log[habitId];
+    }
+    save();
+    paintMarker(day);
+    refreshCounts();
+    renderSheetHead();
+    announce(markerMap[day].g.getAttribute('aria-label'));
+  }
+
+  function toggleFlight(day) {
+    var md = monthData(true);
+    var at = md.flightDays.indexOf(day);
+    if (at === -1) {
+      md.flightDays.push(day);
+      md.flightDays.sort(function (a, b) { return a - b; });
+    } else {
+      md.flightDays.splice(at, 1);
+    }
+    save();
+    paintDay(day);
+    if (daySheet.open && sheetDay === day) renderSheet();
+    announce(day + ' ' + MONTHS[view.m] + (at === -1 ? ' marked as a flight day.' : ' is no longer a flight day.'));
+  }
+
+  function goMonth(delta) {
+    var d = new Date(view.y, view.m + delta, 1);
+    view.y = d.getFullYear();
+    view.m = d.getMonth();
+    renderAll();
+  }
+
+  function addHabit(name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    if (state.habits.length >= MAX_HABITS) return;
+    state.habits.push({ id: newId(), name: name, createdOn: todayKey() });
+    save();
+    renderAll();
+  }
+
+  function deleteHabit(id) {
+    var habit = state.habits.filter(function (h) { return h.id === id; })[0];
+    if (!habit) return;
+    if (!confirm('Delete "' + habit.name + '"? Its logged days in every month are removed too. This cannot be undone.')) return;
+
+    state.habits = state.habits.filter(function (h) { return h.id !== id; });
+    Object.keys(state.months).forEach(function (k) { delete state.months[k].log[id]; });
+    save();
+    renderAll();
+  }
+
+  function moveHabit(id, delta) {
+    var i = state.habits.findIndex(function (h) { return h.id === id; });
+    var j = i + delta;
+    if (i === -1 || j < 0 || j >= state.habits.length) return;
+    var tmp = state.habits[i];
+    state.habits[i] = state.habits[j];
+    state.habits[j] = tmp;
+    save();
+    renderAll();
+  }
+
+  function resetMonth() {
+    var key = monthKey(view.y, view.m);
+    if (!confirm('Clear every log and flight day in ' + MONTHS[view.m] + ' ' + view.y + '?\n\nOther months are untouched. This cannot be undone.')) return;
+    delete state.months[key];
+    save();
+    renderAll();
+    toast(MONTHS[view.m] + ' ' + view.y + ' cleared.');
+  }
+
+  function exportData() {
+    var stamp = new Date().toISOString().slice(0, 10);
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'course-tracker-' + stamp + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    state.lastExport = todayKey();
+    save();
+    renderBackupNote();
+    toast('Exported course-tracker-' + stamp + '.json');
+  }
+
+  function importData(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var clean;
+      try {
+        clean = sanitize(JSON.parse(String(reader.result)));
+      } catch (err) {
+        toast('That file is not valid Course Tracker JSON.');
+        return;
+      }
+      if (!clean.habits.length) {
+        toast('That file has no habits in it.');
+        return;
+      }
+      if (!confirm('Replace all data on this device with ' + clean.habits.length +
+                   ' habit(s) and ' + Object.keys(clean.months).length + ' month(s) from this file?')) return;
+      state = clean;
+      save();
+      renderAll();
+      toast('Imported.');
+    };
+    reader.onerror = function () { toast('Could not read that file.'); };
+    reader.readAsText(file);
+  }
+
+  /* ============================ chrome helpers ============================ */
+
+  /* Why this matters: this app's only copy of your history is localStorage on
+     this device. iOS Safari evicts that after 7 days without interaction for a
+     site that has NOT been added to the home screen — so a long roster block
+     could take the lot. Installed PWAs are exempt, which makes installing
+     load-bearing rather than a nicety. Exporting is the other half. */
+  var BACKUP_NAG_DAYS = 21;
+
+  function daysSince(key) {
+    if (!key) return Infinity;
+    var p = key.split('-');
+    var then = new Date(+p[0], +p[1] - 1, +p[2]);
+    var now = new Date(); now.setHours(0, 0, 0, 0);
+    return Math.round((now - then) / 86400000);
+  }
+
+  function hasHistory() {
+    return Object.keys(state.months).some(function (k) {
+      var m = state.months[k];
+      return m.flightDays.length || Object.keys(m.log).length;
+    });
+  }
+
+  function renderBackupNote() {
+    var since = daysSince(state.lastExport);
+    var installed = window.matchMedia('(display-mode: standalone)').matches ||
+                    window.navigator.standalone === true;
+
+    backupNote.textContent = state.lastExport
+      ? 'Last exported ' + (since === 0 ? 'today' : since === 1 ? 'yesterday' : since + ' days ago') + '.'
+      : 'Never exported.';
+
+    var stale = hasHistory() && since >= BACKUP_NAG_DAYS;
+    backupNote.className = 'note backup-note' + (stale ? ' warn' : '');
+    if (stale) {
+      backupNote.textContent += ' Worth exporting — this device holds the only copy' +
+        (installed ? '.' : ', and an uninstalled site can have its storage cleared after a week idle.');
+    }
+  }
+
+  var toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 3200);
+  }
+
+  function announce(msg) { liveEl.textContent = msg; }
+
+  /* ============================ events ============================ */
+
+  markerLayer.addEventListener('click', function (e) {
+    var g = e.target.closest('.marker');
+    if (g) openDay(Number(g.dataset.day));
+  });
+
+  markerLayer.addEventListener('keydown', function (e) {
+    var g = e.target.closest('.marker');
+    if (!g) return;
+    var day = Number(g.dataset.day);
+    var n = daysInMonth(view.y, view.m);
+    var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+
+    if (step)                 { e.preventDefault(); setFocusDay(day + step, true); return; }
+    if (e.key === 'Home')     { e.preventDefault(); setFocusDay(1, true); return; }
+    if (e.key === 'End')      { e.preventDefault(); setFocusDay(n, true); return; }
+    if (e.key === 'PageUp')   { e.preventDefault(); setFocusDay(day - DAYS_PER_TURN, true); return; }
+    if (e.key === 'PageDown') { e.preventDefault(); setFocusDay(day + DAYS_PER_TURN, true); return; }
+
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      openDay(day);
+    }
+  });
+
+  markerLayer.addEventListener('focusin', function (e) {
+    var g = e.target.closest('.marker');
+    if (g) setFocusDay(Number(g.dataset.day), false);
+  });
+
+  labelLayer.addEventListener('click', function (e) {
+    var g = e.target.closest('.daylabel');
+    if (g) toggleFlight(Number(g.dataset.day));
+  });
+
+  dayStrip.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-day]');
+    if (b) toggleFlight(Number(b.dataset.day));
+  });
+
+  sheetList.addEventListener('change', function (e) {
+    var cb = e.target.closest('input[type="checkbox"]');
+    if (!cb) return;
+    if (cb.disabled) { cb.checked = false; return; }
+    if (isFlight(sheetDay)) { cb.checked = !cb.checked; toast('Clear the flight day first to tick habits.'); return; }
+    cb.closest('.tick').classList.toggle('is-on', cb.checked);
+    setHabitDay(cb.dataset.habit, sheetDay, cb.checked);
+  });
+  sheetFlight.addEventListener('click', function () { toggleFlight(sheetDay); });
+  $('sheetClose').addEventListener('click', function () { daySheet.close(); });
+  daySheet.addEventListener('close', function () { sheetDay = null; });
+  daySheet.addEventListener('click', function (e) { if (e.target === daySheet) daySheet.close(); });
+
+  $('prevMonth').addEventListener('click', function () { goMonth(-1); });
+  $('nextMonth').addEventListener('click', function () { goMonth(1); });
+
+  addForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    addHabit(addInput.value);
+    addInput.value = '';
+  });
+
+  habitList.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    var id = b.closest('.habit-row').dataset.id;
+    if (b.dataset.act === 'del') deleteHabit(id);
+    else moveHabit(id, b.dataset.act === 'up' ? -1 : 1);
+  });
+
+  habitList.addEventListener('change', function (e) {
+    var input = e.target.closest('.habit-name');
+    if (!input) return;
+    var id = input.closest('.habit-row').dataset.id;
+    var habit = state.habits.filter(function (h) { return h.id === id; })[0];
+    if (!habit) return;
+    var name = input.value.trim().slice(0, 40);
+    if (!name) { input.value = habit.name; return; }
+    habit.name = name;
+    save();
+    renderAll();
+  });
+
+  habitList.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.closest('.habit-name')) {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+
+  $('resetBtn').addEventListener('click', resetMonth);
+  $('exportBtn').addEventListener('click', exportData);
+  $('importBtn').addEventListener('click', function () { $('importFile').click(); });
+  $('importFile').addEventListener('change', function (e) {
+    if (e.target.files && e.target.files[0]) importData(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target.matches('input, textarea')) return;
+    if (daySheet.open) return;
+    if (e.target.closest && e.target.closest('.marker')) return;  /* arrows move days there */
+    if (e.key === 'ArrowLeft'  && !e.metaKey && !e.ctrlKey) goMonth(-1);
+    if (e.key === 'ArrowRight' && !e.metaKey && !e.ctrlKey) goMonth(1);
+  });
+
+  /* keep the habits panel open as a side panel on wide screens */
+  var wide = window.matchMedia('(min-width: 920px)');
+  function syncPanel() { if (wide.matches) panel.open = true; }
+  if (wide.addEventListener) wide.addEventListener('change', syncPanel);
+  else if (wide.addListener) wide.addListener(syncPanel);
+  syncPanel();
+
+  /* ============================ install prompt ============================ */
+
+  var deferredPrompt = null;
+  var installBtn = $('installBtn');
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.hidden = false;
+  });
+
+  installBtn.addEventListener('click', function () {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(function () {
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    });
+  });
+
+  /* Chrome/Firefox honour this and exempt the origin from quota eviction.
+     Safari ignores it, which is why the iOS hint below exists. */
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then(function (already) {
+      if (!already) navigator.storage.persist();
+    }).catch(function () {});
+  }
+
+  /* iOS never fires beforeinstallprompt, so the Install button never appears
+     there — yet iOS is the platform where installing actually protects data. */
+  (function () {
+    var ua = navigator.userAgent;
+    /* iPadOS reports platform MacIntel, hence the second clause. The Android
+       guard keeps emulated/DevTools sessions (Android UA on a MacIntel host)
+       from tripping it. */
+    var iOS = /iPad|iPhone|iPod/.test(ua) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 &&
+               !/Android/.test(ua));
+    var standalone = window.navigator.standalone === true ||
+                     window.matchMedia('(display-mode: standalone)').matches;
+    if (iOS && !standalone) iosHint.hidden = false;
+  })();
+
+  window.addEventListener('appinstalled', function () {
+    deferredPrompt = null;
+    installBtn.hidden = true;
+    toast('Course Tracker installed.');
+  });
+
+  /* ============================ service worker ============================ */
+
+  if (false) {   /* demo never registers a worker */
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function (err) {
+        console.warn('Course Tracker: service worker registration failed.', err);
+      });
+    });
+  }
+
+  function syncAnimation() {
+    document.body.classList.toggle('anim-paused', document.hidden);
+  }
+  document.addEventListener('visibilitychange', syncAnimation);
+  syncAnimation();
+
+  /* ============================ go ============================ */
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
