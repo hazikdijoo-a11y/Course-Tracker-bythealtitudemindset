@@ -611,6 +611,67 @@
   .sheet-score.s-pending { color: var(--on-panel-soft); }
   .sheet-verdict { font-size: 12.5px; color: rgba(248,246,240,.7); margin-top: 2px; min-height: 1em; }
 
+  /* ---------- day dial ---------- */
+  .day-dial-wrap {
+    position: relative;
+    width: min(320px, 86%);
+    margin: 14px auto 2px;
+    container-type: inline-size;
+  }
+  #dayDial { display: block; width: 100%; height: auto; overflow: visible; touch-action: manipulation; }
+
+  .day-dial-hub {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(var(--dhole, .4) * 100%);
+    container-type: inline-size;
+    text-align: center;
+    pointer-events: none;
+    color: var(--on-panel);
+  }
+  /* An element cannot query itself: cqw inside .day-dial-hub would resolve
+     against .day-dial-wrap, not the hub. The text sits in a child so the units
+     scale with the hole, which shrinks as habits are added. */
+  #dayDialHubText {
+    display: block;
+    font-size: 34cqw;
+    font-weight: 700;
+    line-height: 1;
+    letter-spacing: -0.02em;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+  .day-dial-hub.is-name #dayDialHubText {
+    font-size: 15cqw;
+    font-weight: 600;
+    letter-spacing: 0;
+    white-space: normal;
+    line-height: 1.2;
+    color: var(--cream);
+  }
+  .day-dial-hub.s-met     { color: var(--done); }
+  .day-dial-hub.s-partial { color: var(--done); }
+  .day-dial-hub.s-missed  { color: var(--missed); }
+  .day-dial-hub.s-flight  { color: var(--gold); }
+  .day-dial-hub.s-pending { color: var(--on-panel-soft); }
+
+  .hbox { cursor: pointer; }
+  .hbox .hit { fill: transparent; }
+  .hbox .box {
+    fill: none;
+    stroke: var(--empty);
+    stroke-width: 1.2;
+    transition: fill .12s ease, stroke .12s ease;
+  }
+  .hbox.on .box     { fill: var(--done);   stroke: var(--done-edge); stroke-width: 1; }
+  .hbox.flight .box { fill: var(--gold);   stroke: var(--gold-deep); }
+  .hbox.later       { cursor: not-allowed; }
+  .hbox.later .box  { stroke: var(--guide); stroke-dasharray: 2 2; opacity: .6; }
+  .hbox:hover .box  { stroke: var(--cream); }
+  .hbox:focus { outline: none; }
+  .hbox:focus-visible .hit { stroke: var(--gold); stroke-width: 1.6; stroke-dasharray: 3 3; }
+
   .sheet-tools { display: flex; gap: 8px; padding: 12px 20px 0; }
   .sheet-tools button { flex: 1; font-size: 13px; }
   .sheet-tools button[aria-pressed="true"] {
@@ -766,6 +827,14 @@
     <h3 id="sheetTitle">Day</h3>
     <div class="sheet-score" id="sheetScore">0 / 0</div>
     <div class="sheet-verdict" id="sheetVerdict"></div>
+    <div class="day-dial-wrap">
+      <svg id="dayDial" preserveAspectRatio="xMidYMid meet" role="group" aria-label="This day's habits, one box each">
+        <g id="dayRadar" aria-hidden="true"></g>
+        <g id="dayGuide" aria-hidden="true"></g>
+        <g id="dayBoxes"></g>
+      </svg>
+      <div class="day-dial-hub" id="dayDialHub"><span id="dayDialHubText"></span></div>
+    </div>
   </div>
   <div class="sheet-tools">
     <button type="button" id="sheetFlight" aria-pressed="false">Mark as flight day</button>
@@ -833,6 +902,14 @@
   var targetNote = $('targetNote');
   var rateNote   = $('rateNote');
   var sheetLater = $('sheetLater');
+  var dayDial    = $('dayDial');
+  var dayRadar   = $('dayRadar');
+  var dayGuide   = $('dayGuide');
+  var dayBoxes   = $('dayBoxes');
+  var dayDialHub = $('dayDialHub');
+  var dayDialHubText = $('dayDialHubText');
+  var boxMap     = {};
+  var boxFocus   = null;
   var daySheet   = $('daySheet');
   var sheetTitle = $('sheetTitle');
   var sheetScore = $('sheetScore');
@@ -1438,6 +1515,131 @@
     else daySheet.setAttribute('open', '');
   }
 
+  /* ---- the day dial: one small box per habit, wound onto a spiral ----
+     Aircraft are the month's vocabulary; a habit is not a day, so at this level
+     they read as boxes on the same dial instead. */
+  var D_R0 = 30, D_DR = 19, D_PER_TURN = 9, D_PAD = 15;
+
+  function dayPointAt(u) {
+    var th = TWO_PI * u;
+    var r = D_R0 + D_DR * u;
+    return {
+      r: r, x: r * Math.sin(th), y: -r * Math.cos(th),
+      angle: Math.atan2(D_DR * Math.sin(th) + r * TWO_PI * Math.cos(th),
+                        D_DR * Math.cos(th) - r * TWO_PI * Math.sin(th)) * 180 / Math.PI
+    };
+  }
+
+  function buildDayDial(day) {
+    dayRadar.textContent = '';
+    dayGuide.textContent = '';
+    dayBoxes.textContent = '';
+    boxMap = {};
+
+    var list = state.habits;
+    var n = list.length;
+    if (!n) { dayDial.setAttribute('viewBox', '-60 -60 120 120'); dayDialHubText.textContent = ''; return; }
+
+    var turns = (n - 1) / D_PER_TURN;
+    var span = D_R0 + D_DR * turns + D_PAD;
+    dayDial.setAttribute('viewBox', (-span) + ' ' + (-span) + ' ' + (span * 2) + ' ' + (span * 2));
+    dayDial.parentNode.style.setProperty('--dhole', (D_R0 * 0.9 / span).toFixed(4));
+
+    /* guide spiral */
+    var d = '', steps = Math.max(24, Math.round(turns * 200));
+    for (var i = 0; i <= steps; i++) {
+      var gp = dayPointAt((i / steps) * turns);
+      d += (i ? 'L' : 'M') + gp.x.toFixed(2) + ',' + gp.y.toFixed(2) + ' ';
+    }
+    dayGuide.appendChild(el('path', { d: d, class: 'guide' }));
+
+    /* radar sweep, same treatment as the month dial */
+    var R = span - 2;
+    var sg = el('g', { class: 'sweep' });
+    for (var k = 0; k < 16; k++) {
+      var a1 = -k * 3.6, a0 = a1 - 3.6;
+      var q0 = { x: R * Math.sin(a0 * Math.PI / 180), y: -R * Math.cos(a0 * Math.PI / 180) };
+      var q1 = { x: R * Math.sin(a1 * Math.PI / 180), y: -R * Math.cos(a1 * Math.PI / 180) };
+      sg.appendChild(el('path', {
+        class: 'sweep-slice',
+        d: 'M0,0 L' + q0.x.toFixed(2) + ',' + q0.y.toFixed(2) + ' A' + R.toFixed(2) + ',' + R.toFixed(2) +
+           ' 0 0 1 ' + q1.x.toFixed(2) + ',' + q1.y.toFixed(2) + ' Z',
+        opacity: (0.085 * (1 - k / 16)).toFixed(3)
+      }));
+    }
+    sg.appendChild(el('line', { class: 'sweep-edge', x1: 0, y1: 0, x2: 0, y2: (-R).toFixed(2) }));
+    dayRadar.appendChild(sg);
+
+    boxFocus = null;
+    list.forEach(function (h, i) {
+      var p = dayPointAt(i / D_PER_TURN);
+      var spacing = TWO_PI * p.r / D_PER_TURN;
+      var size = Math.max(7, Math.min(14, spacing * 0.55));
+
+      var g = el('g', { class: 'hbox', role: 'button', tabindex: boxFocus === null ? '0' : '-1',
+                        transform: 'translate(' + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ')' });
+      if (boxFocus === null) boxFocus = h.id;
+      g.dataset.habit = h.id;
+
+      g.appendChild(el('ellipse', {
+        class: 'hit',
+        rx: (D_DR * 0.46).toFixed(1),
+        ry: Math.min(spacing * 0.46, 20).toFixed(1),
+        transform: 'rotate(' + p.angle.toFixed(2) + ')'
+      }));
+
+      var phase = (i % D_PER_TURN) / D_PER_TURN;
+      var ping = el('circle', { class: 'ping', r: (size * 0.85 + 5).toFixed(1) });
+      ping.style.animationDelay = (-SWEEP_SECONDS * (1 - phase)).toFixed(4) + 's';
+      g.appendChild(ping);
+
+      g.appendChild(el('rect', {
+        class: 'box',
+        x: (-size / 2).toFixed(2), y: (-size / 2).toFixed(2),
+        width: size.toFixed(2), height: size.toFixed(2), rx: (size * 0.22).toFixed(2),
+        transform: 'rotate(' + p.angle.toFixed(2) + ')'
+      }));
+
+      dayBoxes.appendChild(g);
+      boxMap[h.id] = { g: g, name: h.name };
+      paintBox(h.id, day);
+    });
+  }
+
+  function paintBox(habitId, day) {
+    var ref = boxMap[habitId];
+    if (!ref) return;
+    var habit = state.habits.filter(function (h) { return h.id === habitId; })[0];
+    if (!habit) return;
+    var live = isActiveOn(habit, day);
+    var flight = isFlight(day);
+    var on = !!(monthData(false).log[habitId] && monthData(false).log[habitId][String(day)] === 'done');
+
+    ref.g.setAttribute('class', 'hbox' + (!live ? ' later' : (flight ? ' flight' : (on ? ' on' : ''))));
+    ref.g.setAttribute('aria-label', habit.name + ', ' +
+      (!live ? 'added later, not tracked on this day' : flight ? 'flight day' : (on ? 'done' : 'not done')));
+    ref.g.setAttribute('aria-pressed', live && !flight ? (on ? 'true' : 'false') : 'false');
+  }
+
+  /* The dial and the list are two views of the same tick, so a change from
+     either has to move the other — without rebuilding it, which would destroy
+     the control under the user's finger. */
+  function syncListRow(habitId, on) {
+    var cb = sheetList.querySelector('input[data-habit="' + habitId + '"]');
+    if (!cb) return;
+    cb.checked = on;
+    cb.closest('.tick').classList.toggle('is-on', on);
+  }
+
+  function setBoxFocus(habitId, moveFocus) {
+    if (!boxMap[habitId]) return;
+    boxFocus = habitId;
+    Object.keys(boxMap).forEach(function (k) {
+      boxMap[k].g.setAttribute('tabindex', k === habitId ? '0' : '-1');
+    });
+    if (moveFocus) boxMap[habitId].g.focus();
+  }
+
   /* Header only. Never rebuilds the list, so ticking never destroys the
      checkbox under the user's finger or steals keyboard focus. */
   function renderSheetHead() {
@@ -1465,12 +1667,19 @@
 
     sheetFlight.setAttribute('aria-pressed', flight ? 'true' : 'false');
     sheetFlight.textContent = flight ? '✈  Flight day — tap to clear' : 'Mark as flight day';
+
+    /* The fraction is already on the line above; the hub carries the percentage
+       so the centre of the dial adds something rather than repeating it. */
+    dayDialHubText.textContent = flight ? '✈' : (sc.total ? pct + '%' : '');
+    dayDialHub.className = 'day-dial-hub s-' + st;
   }
 
   function renderSheet() {
     var day = sheetDay;
     if (!day) return;
     renderSheetHead();
+
+    buildDayDial(day);
 
     var log = monthData(false).log;
     sheetList.textContent = '';
@@ -1516,6 +1725,8 @@
     paintMarker(day);
     refreshCounts();
     renderSheetHead();
+    paintBox(habitId, day);
+    syncListRow(habitId, on);
     announce(markerMap[day].g.getAttribute('aria-label'));
   }
 
@@ -1723,6 +1934,50 @@
     cb.closest('.tick').classList.toggle('is-on', cb.checked);
     setHabitDay(cb.dataset.habit, sheetDay, cb.checked);
   });
+  function toggleFromDial(habitId) {
+    var habit = state.habits.filter(function (h) { return h.id === habitId; })[0];
+    if (!habit) return;
+    if (!isActiveOn(habit, sheetDay)) { toast(habit.name + ' did not exist yet on this day.'); return; }
+    if (isFlight(sheetDay)) { toast('Clear the flight day first to tick habits.'); return; }
+    var on = !(monthData(false).log[habitId] && monthData(false).log[habitId][String(sheetDay)] === 'done');
+    setHabitDay(habitId, sheetDay, on);
+  }
+
+  dayBoxes.addEventListener('click', function (e) {
+    var g = e.target.closest('.hbox');
+    if (g) toggleFromDial(g.dataset.habit);
+  });
+
+  dayBoxes.addEventListener('keydown', function (e) {
+    var g = e.target.closest('.hbox');
+    if (!g) return;
+    var ids = state.habits.map(function (h) { return h.id; });
+    var i = ids.indexOf(g.dataset.habit);
+    var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+    if (step) { e.preventDefault(); setBoxFocus(ids[Math.max(0, Math.min(ids.length - 1, i + step))], true); return; }
+    if (e.key === 'Home') { e.preventDefault(); setBoxFocus(ids[0], true); return; }
+    if (e.key === 'End')  { e.preventDefault(); setBoxFocus(ids[ids.length - 1], true); return; }
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      toggleFromDial(g.dataset.habit);
+    }
+  });
+
+  dayBoxes.addEventListener('focusin', function (e) {
+    var g = e.target.closest('.hbox');
+    if (g) setBoxFocus(g.dataset.habit, false);
+  });
+
+  /* hovering a box names it, since a box cannot carry a label */
+  dayBoxes.addEventListener('mouseover', function (e) {
+    var g = e.target.closest('.hbox');
+    if (g && boxMap[g.dataset.habit]) {
+      dayDialHubText.textContent = boxMap[g.dataset.habit].name;
+      dayDialHub.className = 'day-dial-hub is-name';
+    }
+  });
+  dayBoxes.addEventListener('mouseout', function () { renderSheetHead(); });
+
   sheetFlight.addEventListener('click', function () { toggleFlight(sheetDay); });
   $('sheetClose').addEventListener('click', function () { daySheet.close(); });
   daySheet.addEventListener('close', function () { sheetDay = null; });
