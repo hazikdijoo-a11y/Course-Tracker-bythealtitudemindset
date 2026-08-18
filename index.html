@@ -187,6 +187,38 @@
     touch-action: manipulation;
   }
 
+  .sweep-slice { fill: var(--gold); }
+  .sweep-edge  { stroke: var(--gold); stroke-width: 1.4; opacity: .5; }
+  .sweep {
+    transform-box: view-box;
+    transform-origin: 50% 50%;
+    animation: radar-sweep 8s linear infinite;
+  }
+  @keyframes radar-sweep { to { transform: rotate(360deg); } }
+
+  .ping {
+    fill: none;
+    stroke: var(--gold);
+    stroke-width: 1.4;
+    opacity: 0;
+    pointer-events: none;
+    animation: radar-ping 8s linear infinite;
+  }
+  @keyframes radar-ping {
+    0%   { opacity: .75; }
+    9%   { opacity: 0; }
+    100% { opacity: 0; }
+  }
+
+  .marker { animation: fly-in .5s ease-out backwards; }
+  @keyframes fly-in { from { opacity: 0; } to { opacity: 1; } }
+
+  /* pause everything when the tab is hidden — no point burning a phone battery
+     spinning a radar nobody is looking at */
+  .anim-paused .sweep,
+  .anim-paused .ping,
+  .anim-paused .today-ring { animation-play-state: paused; }
+
   .guide { fill: none; stroke: var(--guide); stroke-width: 1.8; stroke-linecap: round; }
 
   .dow {
@@ -219,7 +251,9 @@
     stroke-width: 1.6;
     opacity: .8;
     stroke-dasharray: 5 4;
+    animation: lock-dash 3.5s linear infinite;
   }
+  @keyframes lock-dash { to { stroke-dashoffset: -36; } }
   /* days that have not arrived recede, so "not yet" never reads like a result */
   .marker.is-ahead use   { opacity: .42; }
   .marker.is-ahead .badge { opacity: .42; }
@@ -622,7 +656,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    * { transition: none !important; }
+    * { transition: none !important; animation: none !important; }
+    .sweep, .ping { display: none; }
   }
 </style>
 </head>
@@ -649,6 +684,7 @@
             <!-- one aircraft silhouette, nose up, instanced with <use> -->
             <path id="plane" d="M 0,-11 C 1.1,-9.6 1.9,-7.6 2,-5.2 L 2,-2.1 L 9.4,2.1 L 9.4,4.6 L 2,3.1 L 2,6.9 L 4.6,9.4 L 4.6,11 L 0,9.9 L -4.6,11 L -4.6,9.4 L -2,6.9 L -2,3.1 L -9.4,4.6 L -9.4,2.1 L -2,-2.1 L -2,-5.2 C -1.9,-7.6 -1.1,-9.6 0,-11 Z"/>
           </defs>
+          <g id="radarLayer" aria-hidden="true"></g>
           <g id="guideLayer"></g>
           <g id="labelLayer"></g>
           <g id="markerLayer"></g>
@@ -777,6 +813,7 @@
   var $ = function (id) { return document.getElementById(id); };
 
   var svg        = $('spiral');
+  var radarLayer = $('radarLayer');
   var guideLayer = $('guideLayer');
   var labelLayer = $('labelLayer');
   var markerLayer= $('markerLayer');
@@ -1065,11 +1102,44 @@
     spiralWrap.style.setProperty('--hole', (R0 * 0.92 / span).toFixed(4));
     spiralEmpty.hidden = state.habits.length > 0;
 
+    buildRadar();
     buildGuide();
     buildMarkers(n);
     buildDayStrip(n);
     buildHabitList();
     renderBackupNote();
+  }
+
+  var SWEEP_SECONDS = 8;
+
+  /* A radar sweep: a bright leading edge with a decaying wedge behind it. The
+     trail is built from thin constant-opacity slices rather than a gradient,
+     because a linear gradient cannot follow an arc. */
+  function buildRadar() {
+    radarLayer.textContent = '';
+    var R = outerRadius() + 48;
+    var g = el('g', { class: 'sweep' });
+
+    function polar(r, deg) {
+      var th = deg * Math.PI / 180;
+      return { x: r * Math.sin(th), y: -r * Math.cos(th) };
+    }
+
+    var slices = 16, span = 3.6;
+    for (var i = 0; i < slices; i++) {
+      var a1 = -i * span, a0 = a1 - span;
+      var p0 = polar(R, a0), p1 = polar(R, a1);
+      radarSlice(g, 'M0,0 L' + p0.x.toFixed(2) + ',' + p0.y.toFixed(2) +
+        ' A' + R.toFixed(2) + ',' + R.toFixed(2) + ' 0 0 1 ' +
+        p1.x.toFixed(2) + ',' + p1.y.toFixed(2) + ' Z',
+        (0.085 * (1 - i / slices)).toFixed(3));
+    }
+    g.appendChild(el('line', { class: 'sweep-edge', x1: 0, y1: 0, x2: 0, y2: (-R).toFixed(2) }));
+    radarLayer.appendChild(g);
+
+    function radarSlice(parent, d, op) {
+      parent.appendChild(el('path', { class: 'sweep-slice', d: d, opacity: op }));
+    }
   }
 
   function buildGuide() {
@@ -1137,6 +1207,18 @@
       });
       g.dataset.day = String(day);
 
+      /* The ping is delayed by exactly where this marker sits on the dial, so
+         it lights as the sweep crosses it — no JS timer, and every day on the
+         same weekday spoke pings together. A negative delay starts it already
+         in phase instead of waiting a full revolution. */
+      var phase = ((day - 1) % DAYS_PER_TURN) / DAYS_PER_TURN;
+      var ping = el('circle', { class: 'ping', r: (reach + 9).toFixed(1) });
+      /* 4 decimals, not 2: rounding this to hundredths puts the ping a few ms
+         out of phase with the sweep, which is exactly the sort of drift that
+         makes a synced effect look almost-right. */
+      ping.style.animationDelay = (-SWEEP_SECONDS * (1 - phase)).toFixed(4) + 's';
+      g.appendChild(ping);
+
       g.appendChild(el('circle', { class: 'today-ring', r: (reach + 5).toFixed(1) }));
       g.appendChild(el('ellipse', {
         class: 'hit',
@@ -1158,6 +1240,7 @@
       });
       g.appendChild(badge);
 
+      g.style.animationDelay = (day * 0.014).toFixed(3) + 's';
       markerLayer.appendChild(g);
       markerMap[day] = { g: g, badge: badge, today: day === todayInView(), ahead: isAhead(day) };
 
@@ -1763,6 +1846,12 @@
       });
     });
   }
+
+  function syncAnimation() {
+    document.body.classList.toggle('anim-paused', document.hidden);
+  }
+  document.addEventListener('visibilitychange', syncAnimation);
+  syncAnimation();
 
   /* ============================ go ============================ */
 
