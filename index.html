@@ -213,13 +213,15 @@
     user-select: none;
   }
 
-  .marker.s-empty   use { fill: none;          stroke: var(--empty);       stroke-width: 1.4; }
+  .marker.s-pending use { fill: none;          stroke: var(--empty);       stroke-width: 1.4; }
+  .marker.s-partial use { fill: none;          stroke: var(--done);        stroke-width: 2.8; }
   .marker.s-met     use { fill: var(--done);   stroke: var(--done-edge);   stroke-width: 0.8; }
-  .marker.s-partial use { fill: var(--missed); stroke: var(--missed-edge); stroke-width: 1.6; }
+  .marker.s-missed  use { fill: var(--missed); stroke: var(--missed-edge); stroke-width: 1.6; }
   .marker.s-flight  use { fill: var(--flight); stroke: var(--flight-edge); stroke-width: 2.2; }
 
+  .marker.s-partial .badge { fill: var(--done); }
   .marker.s-met     .badge { fill: var(--done); }
-  .marker.s-partial .badge { fill: var(--missed); }
+  .marker.s-missed  .badge { fill: var(--missed); }
   .marker.s-flight  .badge { fill: var(--flight); }
 
   .marker:hover use { filter: brightness(1.12); }
@@ -343,7 +345,8 @@
     display: inline-block;
     flex: none;
   }
-  .lg-empty  { border: 1.5px solid var(--empty); }
+  .lg-empty   { border: 1.5px solid var(--empty); }
+  .lg-partial { border: 2.5px solid var(--done); }
   .lg-done   { background: var(--done); }
   .lg-missed { background: var(--missed); box-shadow: inset 0 0 0 2px var(--missed-edge); }
   .lg-flight { background: var(--flight); box-shadow: inset 0 0 0 2px var(--flight-edge); }
@@ -525,9 +528,10 @@
     letter-spacing: -0.01em;
   }
   .sheet-score.s-met     { color: var(--done); }
-  .sheet-score.s-partial { color: var(--missed); }
+  .sheet-score.s-partial { color: var(--done); }
+  .sheet-score.s-missed  { color: var(--missed); }
   .sheet-score.s-flight  { color: var(--gold); }
-  .sheet-score.s-empty   { color: var(--on-panel-soft); }
+  .sheet-score.s-pending { color: var(--on-panel-soft); }
   .sheet-verdict { font-size: 12.5px; color: rgba(248,246,240,.7); margin-top: 2px; min-height: 1em; }
 
   .sheet-tools { display: flex; gap: 8px; padding: 12px 20px 0; }
@@ -617,9 +621,10 @@
       </div>
 
       <div class="legend" aria-label="Legend">
-        <span><i class="lg-empty"></i> Nothing ticked</span>
+        <span><i class="lg-empty"></i> Not yet</span>
+        <span><i class="lg-partial"></i> Partly done &#9680;</span>
         <span><i class="lg-done"></i> 80%+ &mdash; target met &#10003;</span>
-        <span><i class="lg-missed"></i> Below 80% &#10005;</span>
+        <span><i class="lg-missed"></i> Missed &#10005;</span>
         <span><i class="lg-flight"></i> Flight day &#9992;</span>
       </div>
     </section>
@@ -706,7 +711,7 @@
   var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
                 'July', 'August', 'September', 'October', 'November', 'December'];
 
-  var BADGE = { met: '✓', partial: '✕', flight: '✈' };
+  var BADGE = { met: '✓', partial: '◐', missed: '✕', flight: '✈' };
   var DOW = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
   /* ============================ elements ============================ */
@@ -863,11 +868,19 @@
     return { done: done, total: total, pct: total ? done / total : 0 };
   }
 
-  /* Flight day still overrides the display and preserves what is underneath. */
+  function isPast(day) {
+    var t = new Date(); t.setHours(0, 0, 0, 0);
+    return new Date(view.y, view.m, day) < t;
+  }
+
+  /* Flight day still overrides the display and preserves what is underneath.
+     Grey means "not yet" — today and anything ahead of it. A day that has
+     already been and gone with nothing ticked is a miss, not a blank. */
   function dayState(day) {
     if (isFlight(day)) return 'flight';
     var sc = dayScore(day);
-    if (!sc.done) return 'empty';
+    if (!sc.total) return 'pending';
+    if (!sc.done) return isPast(day) ? 'missed' : 'pending';
     return sc.pct >= GOAL ? 'met' : 'partial';
   }
 
@@ -1048,9 +1061,13 @@
       if (sc.done) label += ' (' + sc.done + ' of ' + sc.total + ' still ticked underneath)';
     } else if (!sc.total) {
       label = date + ', no habits yet';
+    } else if (st === 'missed') {
+      label = date + ', nothing ticked, missed';
+    } else if (st === 'pending') {
+      label = date + ', not logged yet';
     } else {
       label = date + ', ' + sc.done + ' of ' + sc.total + ' habits, ' + pct + ' percent, ' +
-              (st === 'met' ? 'target met' : 'below target');
+              (st === 'met' ? 'target met' : 'partly done');
     }
     ref.g.setAttribute('aria-label', label);
   }
@@ -1179,10 +1196,15 @@
     sheetScore.textContent = sc.total
       ? sc.done + ' / ' + sc.total + '  ·  ' + pct + '%'
       : 'No habits yet';
-    sheetScore.className = 'sheet-score ' + (flight ? 's-flight' : (!sc.done ? 's-empty' : (sc.pct >= GOAL ? 's-met' : 's-partial')));
-    sheetVerdict.textContent = flight
-      ? 'Flight day — excluded from your totals'
-      : (!sc.total ? '' : (sc.pct >= GOAL ? 'Target met — flying green' : 'Below the 80% target'));
+    var st = dayState(day);
+    sheetScore.className = 'sheet-score s-' + st;
+    sheetVerdict.textContent = {
+      flight:  'Flight day — excluded from your totals',
+      met:     'Target met — flying green',
+      partial: 'Partly done — ' + Math.max(0, Math.ceil(sc.total * GOAL) - sc.done) + ' more to hit 80%',
+      missed:  'Nothing ticked on this day',
+      pending: sc.total ? 'Nothing ticked yet' : ''
+    }[st] || '';
 
     sheetFlight.setAttribute('aria-pressed', flight ? 'true' : 'false');
     sheetFlight.textContent = flight ? '✈  Flight day — tap to clear' : 'Mark as flight day';
