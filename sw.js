@@ -1,5 +1,5 @@
 /* Course Tracker by The Altitude Mindset — service worker */
-const CACHE = 'course-tracker-v11';
+const CACHE = 'course-tracker-v12';
 
 const ASSETS = [
   './',
@@ -44,11 +44,17 @@ self.addEventListener('fetch', (event) => {
     event.respondWith(
       fetch(req)
         .then((res) => {
+          /* Store under the REQUEST's own key, never a fixed './index.html'.
+             Writing every navigation to that one key meant visiting any other
+             page in scope — demo.html, say — overwrote the cached app shell,
+             so the next offline launch of the app served that other page
+             instead. Keyed by request, each page caches as itself. */
           const copy = res.clone();
-          caches.open(CACHE).then((c) => c.put('./index.html', copy)).catch(() => {});
+          caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
           return res;
         })
-        .catch(() => caches.match('./index.html', { ignoreSearch: true })
+        .catch(() => caches.match(req, { ignoreSearch: true })
+          .then((hit) => hit || caches.match('./index.html', { ignoreSearch: true }))
           .then((hit) => hit || caches.match('./', { ignoreSearch: true })))
     );
     return;
