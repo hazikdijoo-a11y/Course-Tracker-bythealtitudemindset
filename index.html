@@ -1,0 +1,1241 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Course Tracker by The Altitude Mindset</title>
+<meta name="description" content="A spiral habit tracker. Each habit is one turn of the spiral; each day is an aircraft you tap to log.">
+<meta name="theme-color" content="#0B1B2B">
+<link rel="manifest" href="./manifest.json">
+<link rel="icon" href="./icon-192.png" type="image/png">
+<link rel="apple-touch-icon" href="./icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Course Tracker">
+<style>
+  :root {
+    color-scheme: light;
+    --ink:        #14202E;
+    --ink-soft:   #5A6B7D;
+    --ink-faint:  #8C9AAA;
+    --paper:      #F4F7FA;
+    --card:       #FFFFFF;
+    --edge:       #DCE4EC;
+    --edge-soft:  #EAF0F5;
+    --navy:       #0B1B2B;
+    --guide:      #BFD0DF;
+
+    --empty:  #9AA0A6;
+    --done:   #2E7D32;
+    --missed: #C62828;
+    --flight: #1565C0;
+
+    --radius: 14px;
+    --shadow: 0 1px 2px rgba(16,32,48,.06), 0 8px 24px rgba(16,32,48,.06);
+  }
+
+  * { box-sizing: border-box; }
+
+  [hidden] { display: none !important; }
+
+  html, body { margin: 0; padding: 0; }
+
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font: 15px/1.45 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);
+  }
+
+  .wrap {
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 18px 16px 48px;
+  }
+
+  /* ---------- header ---------- */
+
+  .app-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    padding-bottom: 16px;
+    margin-bottom: 18px;
+    border-bottom: 1px solid var(--edge);
+  }
+
+  .brand-mark {
+    width: 38px; height: 38px;
+    border-radius: 10px;
+    flex: none;
+    background: var(--navy);
+  }
+
+  .brand-text { min-width: 0; }
+
+  .app-name {
+    margin: 0;
+    font-size: 19px;
+    font-weight: 650;
+    letter-spacing: -0.01em;
+    line-height: 1.15;
+  }
+
+  .byline {
+    margin: 2px 0 0;
+    font-size: 10.5px;
+    font-weight: 400;
+    letter-spacing: .13em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+  }
+
+  .header-actions { margin-left: auto; display: flex; gap: 8px; }
+
+  /* ---------- buttons ---------- */
+
+  button {
+    font: inherit;
+    color: inherit;
+    cursor: pointer;
+    border-radius: 9px;
+    border: 1px solid var(--edge);
+    background: var(--card);
+    padding: 7px 12px;
+    transition: background .12s, border-color .12s;
+  }
+  button:hover:not(:disabled) { background: var(--edge-soft); }
+  button:disabled { opacity: .45; cursor: not-allowed; }
+  button:focus-visible,
+  input:focus-visible,
+  summary:focus-visible { outline: 2px solid var(--flight); outline-offset: 2px; }
+
+  .btn-primary {
+    background: var(--navy);
+    border-color: var(--navy);
+    color: #fff;
+    font-weight: 550;
+  }
+  .btn-primary:hover:not(:disabled) { background: #16324B; }
+
+  .btn-danger { color: var(--missed); }
+
+  /* ---------- layout ---------- */
+
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+  @media (min-width: 920px) {
+    main { grid-template-columns: minmax(0, 1fr) 330px; }
+    .spiral-card { grid-column: 1; grid-row: 1; }
+    .days-card   { grid-column: 1; grid-row: 2; }
+    .panel       { grid-column: 2; grid-row: 1 / span 2; align-self: start; }
+  }
+
+  .card {
+    background: var(--card);
+    border: 1px solid var(--edge);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow);
+  }
+
+  /* ---------- spiral ---------- */
+
+  .spiral-card { padding: 10px 10px 16px; }
+
+  .spiral-wrap {
+    position: relative;
+    width: 100%;
+    max-width: 620px;
+    margin: 0 auto;
+    container-type: inline-size;
+  }
+
+  #spiral {
+    display: block;
+    width: 100%;
+    height: auto;
+    overflow: visible;
+    touch-action: manipulation;
+  }
+
+  .guide { fill: none; stroke: var(--guide); stroke-width: 1.6; stroke-linecap: round; }
+
+  .marker { cursor: pointer; }
+  .marker .hit { fill: transparent; stroke: none; }
+  .marker use { stroke-linejoin: round; stroke-linecap: round; transition: fill .1s ease; }
+  .marker .badge {
+    fill: var(--ink);
+    text-anchor: middle;
+    dominant-baseline: central;
+    font-weight: 700;
+    opacity: .9;
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .marker.s-empty  use { fill: none;           stroke: var(--empty);  stroke-width: 1.6; }
+  .marker.s-done   use { fill: var(--done);    stroke: #1B5E20;       stroke-width: 1.0; }
+  .marker.s-missed use { fill: var(--missed);  stroke: #7F1D1D;       stroke-width: 2.4; }
+  .marker.s-flight use { fill: var(--flight);  stroke: #0A2F5E;       stroke-width: 3.4; }
+
+  .marker.s-done   .badge { fill: var(--done); }
+  .marker.s-missed .badge { fill: var(--missed); }
+  .marker.s-flight .badge { fill: var(--flight); }
+
+  .marker:hover use { filter: brightness(1.12); }
+  .marker:focus { outline: none; }
+  .marker:focus-visible .hit {
+    stroke: var(--navy);
+    stroke-width: 2;
+    stroke-dasharray: 3 3;
+  }
+
+  .daylabel { cursor: pointer; }
+  .daylabel .hit { fill: transparent; }
+  .daylabel text {
+    fill: var(--ink-faint);
+    text-anchor: middle;
+    dominant-baseline: central;
+    pointer-events: none;
+    user-select: none;
+  }
+  .daylabel.is-flight text { fill: var(--flight); font-weight: 700; }
+  .daylabel:hover text { fill: var(--ink); }
+
+  /* month hub, centred in the spiral's hole */
+  .hub {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    width: calc(var(--hole, .5) * 100%);
+    container-type: inline-size;
+    text-align: center;
+    pointer-events: none;
+  }
+  .hub-month {
+    font-size: 15cqw;
+    font-weight: 600;
+    letter-spacing: -0.01em;
+    line-height: 1.1;
+    white-space: nowrap;
+  }
+  .hub-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 2cqw;
+    margin-top: 1.5cqw;
+  }
+  .hub-year { font-size: 11cqw; color: var(--ink-soft); font-variant-numeric: tabular-nums; }
+  .hub-row button {
+    pointer-events: auto;
+    border: none;
+    background: none;
+    padding: 0 2cqw;
+    font-size: 15cqw;
+    line-height: 1;
+    color: var(--ink-soft);
+    border-radius: 6px;
+  }
+  .hub-row button:hover { background: var(--edge-soft); color: var(--ink); }
+
+  .spiral-empty {
+    position: absolute;
+    left: 0; right: 0;
+    top: 64%;
+    text-align: center;
+    color: var(--ink-soft);
+    font-size: 14px;
+    padding: 0 24px;
+  }
+
+  /* ---------- day strip ---------- */
+
+  .days-card { padding: 16px; }
+
+  .strip-head {
+    display: flex;
+    align-items: baseline;
+    gap: 8px;
+    margin: 4px 2px 8px;
+  }
+  .strip-head h2 { margin: 0; font-size: 13px; font-weight: 600; }
+  .strip-head p { margin: 0; font-size: 12px; color: var(--ink-faint); }
+
+  .daystrip {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(38px, 1fr));
+    gap: 5px;
+  }
+  .daystrip button {
+    padding: 8px 0;
+    min-height: 38px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    text-align: center;
+  }
+  .daystrip button[aria-pressed="true"] {
+    background: var(--flight);
+    border-color: var(--flight);
+    color: #fff;
+    font-weight: 650;
+  }
+  .daystrip button[aria-pressed="true"]::after { content: " \2708"; }
+
+  /* ---------- legend ---------- */
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    margin-top: 14px;
+    padding-top: 12px;
+    border-top: 1px solid var(--edge-soft);
+    font-size: 12.5px;
+    color: var(--ink-soft);
+  }
+  .legend span { display: inline-flex; align-items: center; gap: 6px; }
+  .legend i {
+    width: 13px; height: 13px;
+    border-radius: 3px;
+    display: inline-block;
+    flex: none;
+  }
+  .lg-empty  { border: 1.5px solid var(--empty); }
+  .lg-done   { background: var(--done); }
+  .lg-missed { background: var(--missed); box-shadow: inset 0 0 0 2px #7F1D1D; }
+  .lg-flight { background: var(--flight); box-shadow: inset 0 0 0 2px #0A2F5E; }
+
+  /* ---------- habits panel ---------- */
+
+  .panel { padding: 0; }
+  .panel > summary {
+    list-style: none;
+    padding: 13px 16px;
+    font-weight: 600;
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: var(--radius);
+  }
+  .panel > summary::-webkit-details-marker { display: none; }
+  .panel > summary::after {
+    content: "\25BE";
+    margin-left: auto;
+    color: var(--ink-faint);
+    transition: transform .15s;
+  }
+  .panel[open] > summary::after { transform: rotate(180deg); }
+  .panel-body { padding: 0 16px 16px; }
+  @media (min-width: 920px) {
+    .panel > summary { display: none; }
+    .panel-body { padding: 16px; }
+  }
+
+  .section-title {
+    font-size: 11px;
+    font-weight: 650;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    margin: 0 0 10px;
+  }
+
+  .habit-list { list-style: none; margin: 0 0 12px; padding: 0; display: grid; gap: 8px; }
+
+  .habit-row {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 10px;
+    border: 1px solid var(--edge);
+    border-radius: 11px;
+    background: var(--paper);
+  }
+
+  .ring-badge {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    font-size: 11px;
+    font-weight: 650;
+    color: var(--ink-soft);
+    background: var(--card);
+    border: 1px solid var(--edge);
+  }
+
+  .habit-name {
+    font: inherit;
+    font-weight: 550;
+    color: inherit;
+    border: none;
+    background: none;
+    padding: 2px 0;
+    min-width: 0;
+    width: 100%;
+    border-bottom: 1px dashed transparent;
+  }
+  .habit-name:hover { border-bottom-color: var(--edge); }
+  .habit-name:focus { outline: none; border-bottom-color: var(--flight); }
+
+  .habit-count {
+    font-size: 12px;
+    color: var(--ink-soft);
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
+  .habit-tools { grid-column: 1 / -1; display: flex; gap: 4px; justify-content: flex-end; }
+  .habit-tools button {
+    padding: 3px 8px;
+    font-size: 12px;
+    line-height: 1.3;
+    border-radius: 7px;
+    background: var(--card);
+  }
+
+  .add-row { display: flex; gap: 8px; }
+  .add-row input {
+    font: inherit;
+    flex: 1;
+    min-width: 0;
+    padding: 8px 10px;
+    border: 1px solid var(--edge);
+    border-radius: 9px;
+    background: var(--card);
+    color: inherit;
+  }
+
+  .note {
+    font-size: 12px;
+    color: var(--ink-soft);
+    margin: 8px 0 0;
+    line-height: 1.4;
+  }
+  .note.warn { color: #8A5A00; }
+
+  .divider { border: 0; border-top: 1px solid var(--edge-soft); margin: 16px 0; }
+
+  .data-tools { display: flex; flex-wrap: wrap; gap: 8px; }
+
+  .toast {
+    position: fixed;
+    left: 50%;
+    bottom: 22px;
+    transform: translate(-50%, 14px);
+    background: var(--navy);
+    color: #fff;
+    padding: 10px 16px;
+    border-radius: 10px;
+    font-size: 13px;
+    box-shadow: 0 8px 28px rgba(11,27,43,.3);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity .18s, transform .18s;
+    z-index: 20;
+    max-width: calc(100vw - 32px);
+  }
+  .toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+  .sr-only {
+    position: absolute;
+    width: 1px; height: 1px;
+    padding: 0; margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="app-header">
+    <img class="brand-mark" src="./icon-192.png" alt="">
+    <div class="brand-text">
+      <h1 class="app-name">Course Tracker</h1>
+      <p class="byline">by The Altitude Mindset</p>
+    </div>
+    <div class="header-actions">
+      <button id="installBtn" class="btn-primary" hidden>Install</button>
+    </div>
+  </header>
+
+  <main>
+    <section class="card spiral-card" aria-label="Monthly spiral">
+      <div class="spiral-wrap" id="spiralWrap">
+        <svg id="spiral" viewBox="-200 -200 400 400" preserveAspectRatio="xMidYMid meet" role="group" aria-labelledby="spiralTitle">
+          <title id="spiralTitle">Habit spiral for the selected month</title>
+          <defs>
+            <!-- one aircraft silhouette, nose up, instanced with <use> -->
+            <path id="plane" d="M 0,-11 C 1.1,-9.6 1.9,-7.6 2,-5.2 L 2,-2.1 L 9.4,2.1 L 9.4,4.6 L 2,3.1 L 2,6.9 L 4.6,9.4 L 4.6,11 L 0,9.9 L -4.6,11 L -4.6,9.4 L -2,6.9 L -2,3.1 L -9.4,4.6 L -9.4,2.1 L -2,-2.1 L -2,-5.2 C -1.9,-7.6 -1.1,-9.6 0,-11 Z"/>
+          </defs>
+          <g id="guideLayer"></g>
+          <g id="labelLayer"></g>
+          <g id="markerLayer"></g>
+        </svg>
+
+        <div class="hub" id="hub">
+          <div class="hub-month" id="hubMonth">Month</div>
+          <div class="hub-row">
+            <button type="button" id="prevMonth" aria-label="Previous month">&lsaquo;</button>
+            <span class="hub-year" id="hubYear">0000</span>
+            <button type="button" id="nextMonth" aria-label="Next month">&rsaquo;</button>
+          </div>
+        </div>
+
+        <div class="spiral-empty" id="spiralEmpty" hidden>
+          Add a habit to draw its turn of the spiral.
+        </div>
+      </div>
+
+      <div class="legend" aria-label="Legend">
+        <span><i class="lg-empty"></i> Empty &mdash; not logged</span>
+        <span><i class="lg-done"></i> Completed &#10003;</span>
+        <span><i class="lg-missed"></i> Missed &#10005;</span>
+        <span><i class="lg-flight"></i> Flight day &#9992;</span>
+      </div>
+    </section>
+
+
+    <details class="card panel" id="habitsPanel" open>
+      <summary>Habits</summary>
+      <div class="panel-body">
+        <p class="section-title">Habits &mdash; one per turn</p>
+        <ul class="habit-list" id="habitList"></ul>
+
+        <form class="add-row" id="addForm">
+          <input id="addInput" type="text" maxlength="40" placeholder="New habit&hellip;" aria-label="New habit name" autocomplete="off">
+          <button type="submit" class="btn-primary" id="addBtn">Add</button>
+        </form>
+        <p class="note" id="addNote"></p>
+
+        <hr class="divider">
+
+        <p class="section-title">Data</p>
+        <div class="data-tools">
+          <button type="button" id="exportBtn">Export&hellip;</button>
+          <button type="button" id="importBtn">Import&hellip;</button>
+          <button type="button" id="resetBtn" class="btn-danger">Reset month</button>
+        </div>
+        <input type="file" id="importFile" accept="application/json,.json" hidden>
+        <p class="note">
+          No account, no server &mdash; everything lives on this device. Export to a
+          <code>.json</code> file to carry your history to another phone or laptop.
+        </p>
+      </div>
+    </details>
+
+    <section class="card days-card" aria-label="Days">
+      <div class="strip-head">
+        <h2>Flight days</h2>
+        <p>Tap a date to mark it a flight day. Excluded from every habit&rsquo;s total.</p>
+      </div>
+      <div class="daystrip" id="dayStrip"></div>
+    </section>
+  </main>
+</div>
+
+<div class="toast" id="toast" role="status" aria-live="polite"></div>
+<p class="sr-only" id="live" role="status" aria-live="polite"></p>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ============================ constants ============================ */
+
+  var STORAGE_KEY = 'course-tracker.v1';
+  var MAX_HABITS  = 5;
+
+  var R0        = 120;   // radius at theta=0 of the first turn
+  var DR        = 56;    // radius gained per full turn
+  var PLANE_LEN = 22;    // nose-to-tail length of the silhouette, in viewBox units
+  var PAD       = 40;    // room outside the outermost turn for day numbers
+
+  var SVGNS = 'http://www.w3.org/2000/svg';
+  var TWO_PI = Math.PI * 2;
+
+  var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June',
+                'July', 'August', 'September', 'October', 'November', 'December'];
+
+  var BADGE = { done: '✓', missed: '✕', flight: '✈' };
+
+  /* ============================ elements ============================ */
+
+  var $ = function (id) { return document.getElementById(id); };
+
+  var svg        = $('spiral');
+  var guideLayer = $('guideLayer');
+  var labelLayer = $('labelLayer');
+  var markerLayer= $('markerLayer');
+  var spiralWrap = $('spiralWrap');
+  var spiralEmpty= $('spiralEmpty');
+  var hubMonth   = $('hubMonth');
+  var hubYear    = $('hubYear');
+  var dayStrip   = $('dayStrip');
+  var habitList  = $('habitList');
+  var addForm    = $('addForm');
+  var addInput   = $('addInput');
+  var addBtn     = $('addBtn');
+  var addNote    = $('addNote');
+  var toastEl    = $('toast');
+  var liveEl     = $('live');
+  var panel      = $('habitsPanel');
+
+  /* ============================ state ============================ */
+
+  var today = new Date();
+  var view  = { y: today.getFullYear(), m: today.getMonth() };
+
+  var state = loadState();
+  var markerMap = {};   // "habitId:day" -> { g: <g>, badge: <text> }
+  var labelMap  = {};   // day -> [<g>, ...]
+
+  function freshState() {
+    return {
+      version: 1,
+      habits: [{ id: newId(), name: 'Daily Study' }],
+      months: {}
+    };
+  }
+
+  function newId() {
+    return 'h' + Date.now().toString(36) + Math.floor(Math.random() * 1296).toString(36);
+  }
+
+  function loadState() {
+    try {
+      var raw = localStorage.getItem(STORAGE_KEY);
+      if (!raw) return freshState();
+      var parsed = JSON.parse(raw);
+      var clean = sanitize(parsed);
+      if (!clean.habits.length && !Object.keys(clean.months).length) return freshState();
+      return clean;
+    } catch (err) {
+      console.warn('Course Tracker: could not read saved data, starting fresh.', err);
+      return freshState();
+    }
+  }
+
+  function save() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    } catch (err) {
+      toast('Could not save — storage is unavailable or full.');
+    }
+  }
+
+  /* Accepts anything; returns a state object that is safe to render. */
+  function sanitize(obj) {
+    var out = { version: 1, habits: [], months: {} };
+    if (!obj || typeof obj !== 'object') return out;
+
+    var seen = {};
+    if (Array.isArray(obj.habits)) {
+      obj.habits.forEach(function (h, i) {
+        if (out.habits.length >= MAX_HABITS) return;
+        if (!h || typeof h !== 'object' || typeof h.name !== 'string') return;
+        var id = (typeof h.id === 'string' && h.id) ? h.id : ('h' + (i + 1));
+        while (seen[id]) id = id + '_';
+        seen[id] = true;
+        out.habits.push({ id: id, name: h.name.slice(0, 40) || 'Untitled' });
+      });
+    }
+
+    if (obj.months && typeof obj.months === 'object') {
+      Object.keys(obj.months).forEach(function (key) {
+        if (!/^\d{4}-\d{2}$/.test(key)) return;
+        var src = obj.months[key] || {};
+        var flight = [];
+        if (Array.isArray(src.flightDays)) {
+          src.flightDays.forEach(function (n) {
+            n = Number(n);
+            if (Number.isInteger(n) && n >= 1 && n <= 31 && flight.indexOf(n) === -1) flight.push(n);
+          });
+        }
+        var log = {};
+        if (src.log && typeof src.log === 'object') {
+          Object.keys(src.log).forEach(function (hid) {
+            var days = src.log[hid];
+            if (!days || typeof days !== 'object') return;
+            var kept = {};
+            Object.keys(days).forEach(function (d) {
+              if (!/^([1-9]|[12]\d|3[01])$/.test(d)) return;
+              if (days[d] === 'done' || days[d] === 'missed') kept[d] = days[d];
+            });
+            if (Object.keys(kept).length) log[hid] = kept;
+          });
+        }
+        if (flight.length || Object.keys(log).length) {
+          out.months[key] = { flightDays: flight.sort(function (a, b) { return a - b; }), log: log };
+        }
+      });
+    }
+    return out;
+  }
+
+  /* ============================ date helpers ============================ */
+
+  function monthKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+  function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
+
+  function monthData(create) {
+    var key = monthKey(view.y, view.m);
+    if (!state.months[key]) {
+      if (!create) return { flightDays: [], log: {} };
+      state.months[key] = { flightDays: [], log: {} };
+    }
+    return state.months[key];
+  }
+
+  function isFlight(day) { return monthData(false).flightDays.indexOf(day) !== -1; }
+
+  function rawValue(habitId, day) {
+    var log = monthData(false).log[habitId];
+    return (log && log[String(day)]) || 'empty';
+  }
+
+  /* What the marker actually renders: flight overrides the display only. */
+  function displayState(habitId, day) {
+    return isFlight(day) ? 'flight' : rawValue(habitId, day);
+  }
+
+  function counts(habitId) {
+    var md = monthData(false);
+    var n = daysInMonth(view.y, view.m);
+    var flights = md.flightDays.filter(function (d) { return d <= n; });
+    var denom = n - flights.length;
+    var log = md.log[habitId] || {};
+    var done = 0;
+    for (var d = 1; d <= n; d++) {
+      if (flights.indexOf(d) !== -1) continue;
+      if (log[String(d)] === 'done') done++;
+    }
+    return { done: done, denom: denom };
+  }
+
+  /* ============================ geometry ============================ */
+
+  /* u is the continuous turn parameter: habit index + fraction through the month. */
+  function pointAt(u) {
+    var th = TWO_PI * u;
+    var r  = R0 + DR * u;
+    return {
+      r: r,
+      th: th,
+      x: r * Math.sin(th),
+      y: -r * Math.cos(th),
+      /* outward radial unit vector */
+      ux: Math.sin(th),
+      uy: -Math.cos(th),
+      /* tangent, as an SVG rotate() angle for a nose-up silhouette */
+      angle: Math.atan2(DR * Math.sin(th) + r * TWO_PI * Math.cos(th),
+                        DR * Math.cos(th) - r * TWO_PI * Math.sin(th)) * 180 / Math.PI
+    };
+  }
+
+  function outerRadius() { return R0 + DR * Math.max(state.habits.length, 1); }
+
+  function el(tag, attrs) {
+    var node = document.createElementNS(SVGNS, tag);
+    for (var k in attrs) {
+      if (Object.prototype.hasOwnProperty.call(attrs, k)) node.setAttribute(k, attrs[k]);
+    }
+    return node;
+  }
+
+  /* ============================ rendering ============================ */
+
+  function renderAll() {
+    var n = daysInMonth(view.y, view.m);
+
+    hubMonth.textContent = MONTHS[view.m];
+    hubYear.textContent  = String(view.y);
+
+    var span = outerRadius() + PAD;
+    svg.setAttribute('viewBox', (-span) + ' ' + (-span) + ' ' + (span * 2) + ' ' + (span * 2));
+    spiralWrap.style.setProperty('--hole', (R0 * 0.92 / span).toFixed(4));
+    spiralEmpty.hidden = state.habits.length > 0;
+
+    buildGuide();
+    buildMarkers(n);
+    buildDayStrip(n);
+    buildHabitList();
+  }
+
+  function buildGuide() {
+    guideLayer.textContent = '';
+    var turns = state.habits.length;
+    if (!turns) return;
+
+    var d = '';
+    var steps = turns * 240;
+    for (var i = 0; i <= steps; i++) {
+      var p = pointAt((i / steps) * turns);
+      d += (i ? 'L' : 'M') + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ' ';
+    }
+    guideLayer.appendChild(el('path', { d: d, class: 'guide' }));
+  }
+
+  function buildMarkers(n) {
+    markerLayer.textContent = '';
+    labelLayer.textContent = '';
+    markerMap = {};
+    labelMap = {};
+
+    state.habits.forEach(function (habit, hi) {
+      for (var day = 1; day <= n; day++) {
+        var p = pointAt(hi + (day - 1) / n);
+
+        /* Keep planes from touching on the tight inner turns. */
+        var spacing = TWO_PI * p.r / n;
+        var scale = Math.max(0.52, Math.min(1.15, spacing * 0.78 / PLANE_LEN));
+        var hitR  = Math.max(9, Math.min(18, spacing * 0.5));
+        var reach = PLANE_LEN * 0.5 * scale;
+
+        var g = el('g', {
+          class: 'marker',
+          transform: 'translate(' + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ')',
+          role: 'button',
+          tabindex: '0'
+        });
+        g.dataset.habit = habit.id;
+        g.dataset.day = String(day);
+
+        g.appendChild(el('circle', { class: 'hit', r: hitR.toFixed(1) }));
+        g.appendChild(el('use', {
+          href: '#plane',
+          transform: 'rotate(' + p.angle.toFixed(2) + ') scale(' + scale.toFixed(3) + ')'
+        }));
+
+        /* redundant, non-colour cue on the inner side of the turn */
+        var bOff = reach + 4.5;
+        var badge = el('text', {
+          class: 'badge',
+          x: (-p.ux * bOff).toFixed(2),
+          y: (-p.uy * bOff).toFixed(2),
+          'font-size': (6 * scale + 1.8).toFixed(1)
+        });
+        g.appendChild(badge);
+
+        markerLayer.appendChild(g);
+        markerMap[habit.id + ':' + day] = { g: g, badge: badge };
+        paintMarker(habit.id, day);
+
+        /* day number, just outside the marker on the outer side of the turn */
+        var lOff = reach + 10;
+        var lg = el('g', { class: 'daylabel', tabindex: '-1', 'aria-hidden': 'true' });
+        lg.dataset.day = String(day);
+        lg.setAttribute('transform',
+          'translate(' + (p.x + p.ux * lOff).toFixed(2) + ',' + (p.y + p.uy * lOff).toFixed(2) + ')');
+        lg.appendChild(el('circle', { class: 'hit', r: (7.5 * scale + 2).toFixed(1) }));
+        var t = el('text', { 'font-size': (7 * scale + 2.4).toFixed(1) });
+        t.textContent = String(day);
+        lg.appendChild(t);
+        labelLayer.appendChild(lg);
+        (labelMap[day] || (labelMap[day] = [])).push(lg);
+      }
+    });
+
+    paintAllLabels();
+  }
+
+  function paintMarker(habitId, day) {
+    var ref = markerMap[habitId + ':' + day];
+    if (!ref) return;
+
+    var st = displayState(habitId, day);
+    ref.g.setAttribute('class', 'marker s-' + st);
+    ref.badge.textContent = BADGE[st] || '';
+
+    var habit = state.habits.filter(function (h) { return h.id === habitId; })[0];
+    var name = habit ? habit.name : 'Habit';
+    var words = { empty: 'not logged', done: 'completed', missed: 'missed', flight: 'flight day' };
+    var label = name + ', ' + day + ' ' + MONTHS[view.m] + ', ' + words[st];
+    if (st === 'flight') {
+      var under = rawValue(habitId, day);
+      if (under !== 'empty') label += ' (' + words[under] + ' underneath)';
+    }
+    ref.g.setAttribute('aria-label', label);
+  }
+
+  function paintDay(day) {
+    state.habits.forEach(function (h) { paintMarker(h.id, day); });
+    paintLabel(day);
+    var btn = dayStrip.querySelector('[data-day="' + day + '"]');
+    if (btn) btn.setAttribute('aria-pressed', isFlight(day) ? 'true' : 'false');
+    refreshCounts();
+  }
+
+  function paintLabel(day) {
+    var on = isFlight(day);
+    (labelMap[day] || []).forEach(function (g) {
+      g.setAttribute('class', 'daylabel' + (on ? ' is-flight' : ''));
+    });
+  }
+
+  function paintAllLabels() {
+    Object.keys(labelMap).forEach(function (d) { paintLabel(Number(d)); });
+  }
+
+  function buildDayStrip(n) {
+    dayStrip.textContent = '';
+    for (var d = 1; d <= n; d++) {
+      var b = document.createElement('button');
+      b.type = 'button';
+      b.dataset.day = String(d);
+      b.textContent = String(d);
+      b.setAttribute('aria-pressed', isFlight(d) ? 'true' : 'false');
+      b.setAttribute('aria-label', d + ' ' + MONTHS[view.m] + ', flight day');
+      dayStrip.appendChild(b);
+    }
+  }
+
+  function buildHabitList() {
+    habitList.textContent = '';
+
+    state.habits.forEach(function (habit, i) {
+      var c = counts(habit.id);
+
+      var li = document.createElement('li');
+      li.className = 'habit-row';
+      li.dataset.id = habit.id;
+
+      var ring = document.createElement('span');
+      ring.className = 'ring-badge';
+      ring.textContent = String(i + 1);
+      ring.title = 'Turn ' + (i + 1) + ' of the spiral';
+
+      var input = document.createElement('input');
+      input.className = 'habit-name';
+      input.type = 'text';
+      input.maxLength = 40;
+      input.value = habit.name;
+      input.setAttribute('aria-label', 'Rename habit ' + habit.name);
+
+      var count = document.createElement('span');
+      count.className = 'habit-count';
+      count.dataset.count = habit.id;
+      count.textContent = c.done + ' / ' + c.denom;
+      count.title = 'Completed days this month, out of non-flight days';
+
+      var tools = document.createElement('div');
+      tools.className = 'habit-tools';
+      [
+        ['up',   '↑', 'Move ' + habit.name + ' up',   i === 0],
+        ['down', '↓', 'Move ' + habit.name + ' down', i === state.habits.length - 1],
+        ['del',  '✕', 'Delete ' + habit.name,         false]
+      ].forEach(function (spec) {
+        var b = document.createElement('button');
+        b.type = 'button';
+        b.dataset.act = spec[0];
+        b.textContent = spec[1];
+        b.setAttribute('aria-label', spec[2]);
+        b.disabled = spec[3];
+        tools.appendChild(b);
+      });
+
+      li.appendChild(ring);
+      li.appendChild(input);
+      li.appendChild(count);
+      li.appendChild(tools);
+      habitList.appendChild(li);
+    });
+
+    var full = state.habits.length >= MAX_HABITS;
+    addInput.disabled = full;
+    addBtn.disabled = full;
+    addNote.className = 'note' + (full ? ' warn' : '');
+    addNote.textContent = full
+      ? 'Five habits is the cap. Past five turns the rings crowd together and the day markers stop being readable or tappable — delete one to add another.'
+      : (MAX_HABITS - state.habits.length) + ' of ' + MAX_HABITS + ' slots left.';
+  }
+
+  function refreshCounts() {
+    state.habits.forEach(function (h) {
+      var node = habitList.querySelector('[data-count="' + h.id + '"]');
+      if (!node) return;
+      var c = counts(h.id);
+      node.textContent = c.done + ' / ' + c.denom;
+    });
+  }
+
+  /* ============================ actions ============================ */
+
+  function cycleMarker(habitId, day) {
+    if (isFlight(day)) {
+      toast(day + ' ' + MONTHS[view.m] + ' is a flight day — clear it to log habits.');
+      return;
+    }
+    var md = monthData(true);
+    var log = md.log[habitId] || (md.log[habitId] = {});
+    var key = String(day);
+    var next = { empty: 'done', done: 'missed', missed: 'empty' }[log[key] || 'empty'];
+
+    if (next === 'empty') {
+      delete log[key];
+      if (!Object.keys(log).length) delete md.log[habitId];
+    } else {
+      log[key] = next;
+    }
+
+    save();
+    paintMarker(habitId, day);
+    refreshCounts();
+    announce(markerMap[habitId + ':' + day].g.getAttribute('aria-label'));
+  }
+
+  function toggleFlight(day) {
+    var md = monthData(true);
+    var at = md.flightDays.indexOf(day);
+    if (at === -1) {
+      md.flightDays.push(day);
+      md.flightDays.sort(function (a, b) { return a - b; });
+    } else {
+      md.flightDays.splice(at, 1);
+    }
+    save();
+    paintDay(day);
+    announce(day + ' ' + MONTHS[view.m] + (at === -1 ? ' marked as a flight day.' : ' is no longer a flight day.'));
+  }
+
+  function goMonth(delta) {
+    var d = new Date(view.y, view.m + delta, 1);
+    view.y = d.getFullYear();
+    view.m = d.getMonth();
+    renderAll();
+  }
+
+  function addHabit(name) {
+    name = name.trim().slice(0, 40);
+    if (!name) return;
+    if (state.habits.length >= MAX_HABITS) return;
+    state.habits.push({ id: newId(), name: name });
+    save();
+    renderAll();
+  }
+
+  function deleteHabit(id) {
+    var habit = state.habits.filter(function (h) { return h.id === id; })[0];
+    if (!habit) return;
+    if (!confirm('Delete "' + habit.name + '"? Its logged days in every month are removed too. This cannot be undone.')) return;
+
+    state.habits = state.habits.filter(function (h) { return h.id !== id; });
+    Object.keys(state.months).forEach(function (k) { delete state.months[k].log[id]; });
+    save();
+    renderAll();
+  }
+
+  function moveHabit(id, delta) {
+    var i = state.habits.findIndex(function (h) { return h.id === id; });
+    var j = i + delta;
+    if (i === -1 || j < 0 || j >= state.habits.length) return;
+    var tmp = state.habits[i];
+    state.habits[i] = state.habits[j];
+    state.habits[j] = tmp;
+    save();
+    renderAll();
+  }
+
+  function resetMonth() {
+    var key = monthKey(view.y, view.m);
+    if (!confirm('Clear every log and flight day in ' + MONTHS[view.m] + ' ' + view.y + '?\n\nOther months are untouched. This cannot be undone.')) return;
+    delete state.months[key];
+    save();
+    renderAll();
+    toast(MONTHS[view.m] + ' ' + view.y + ' cleared.');
+  }
+
+  function exportData() {
+    var stamp = new Date().toISOString().slice(0, 10);
+    var blob = new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' });
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = 'course-tracker-' + stamp + '.json';
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    toast('Exported course-tracker-' + stamp + '.json');
+  }
+
+  function importData(file) {
+    var reader = new FileReader();
+    reader.onload = function () {
+      var clean;
+      try {
+        clean = sanitize(JSON.parse(String(reader.result)));
+      } catch (err) {
+        toast('That file is not valid Course Tracker JSON.');
+        return;
+      }
+      if (!clean.habits.length) {
+        toast('That file has no habits in it.');
+        return;
+      }
+      if (!confirm('Replace all data on this device with ' + clean.habits.length +
+                   ' habit(s) and ' + Object.keys(clean.months).length + ' month(s) from this file?')) return;
+      state = clean;
+      save();
+      renderAll();
+      toast('Imported.');
+    };
+    reader.onerror = function () { toast('Could not read that file.'); };
+    reader.readAsText(file);
+  }
+
+  /* ============================ chrome helpers ============================ */
+
+  var toastTimer;
+  function toast(msg) {
+    toastEl.textContent = msg;
+    toastEl.classList.add('show');
+    clearTimeout(toastTimer);
+    toastTimer = setTimeout(function () { toastEl.classList.remove('show'); }, 3200);
+  }
+
+  function announce(msg) { liveEl.textContent = msg; }
+
+  /* ============================ events ============================ */
+
+  markerLayer.addEventListener('click', function (e) {
+    var g = e.target.closest('.marker');
+    if (g) cycleMarker(g.dataset.habit, Number(g.dataset.day));
+  });
+
+  markerLayer.addEventListener('keydown', function (e) {
+    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
+    var g = e.target.closest('.marker');
+    if (!g) return;
+    e.preventDefault();
+    cycleMarker(g.dataset.habit, Number(g.dataset.day));
+  });
+
+  labelLayer.addEventListener('click', function (e) {
+    var g = e.target.closest('.daylabel');
+    if (g) toggleFlight(Number(g.dataset.day));
+  });
+
+  dayStrip.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-day]');
+    if (b) toggleFlight(Number(b.dataset.day));
+  });
+
+  $('prevMonth').addEventListener('click', function () { goMonth(-1); });
+  $('nextMonth').addEventListener('click', function () { goMonth(1); });
+
+  addForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    addHabit(addInput.value);
+    addInput.value = '';
+  });
+
+  habitList.addEventListener('click', function (e) {
+    var b = e.target.closest('button[data-act]');
+    if (!b) return;
+    var id = b.closest('.habit-row').dataset.id;
+    if (b.dataset.act === 'del') deleteHabit(id);
+    else moveHabit(id, b.dataset.act === 'up' ? -1 : 1);
+  });
+
+  habitList.addEventListener('change', function (e) {
+    var input = e.target.closest('.habit-name');
+    if (!input) return;
+    var id = input.closest('.habit-row').dataset.id;
+    var habit = state.habits.filter(function (h) { return h.id === id; })[0];
+    if (!habit) return;
+    var name = input.value.trim().slice(0, 40);
+    if (!name) { input.value = habit.name; return; }
+    habit.name = name;
+    save();
+    renderAll();
+  });
+
+  habitList.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.closest('.habit-name')) {
+      e.preventDefault();
+      e.target.blur();
+    }
+  });
+
+  $('resetBtn').addEventListener('click', resetMonth);
+  $('exportBtn').addEventListener('click', exportData);
+  $('importBtn').addEventListener('click', function () { $('importFile').click(); });
+  $('importFile').addEventListener('change', function (e) {
+    if (e.target.files && e.target.files[0]) importData(e.target.files[0]);
+    e.target.value = '';
+  });
+
+  document.addEventListener('keydown', function (e) {
+    if (e.target.matches('input, textarea')) return;
+    if (e.key === 'ArrowLeft'  && !e.metaKey && !e.ctrlKey) goMonth(-1);
+    if (e.key === 'ArrowRight' && !e.metaKey && !e.ctrlKey) goMonth(1);
+  });
+
+  /* keep the habits panel open as a side panel on wide screens */
+  var wide = window.matchMedia('(min-width: 920px)');
+  function syncPanel() { if (wide.matches) panel.open = true; }
+  if (wide.addEventListener) wide.addEventListener('change', syncPanel);
+  else if (wide.addListener) wide.addListener(syncPanel);
+  syncPanel();
+
+  /* ============================ install prompt ============================ */
+
+  var deferredPrompt = null;
+  var installBtn = $('installBtn');
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault();
+    deferredPrompt = e;
+    installBtn.hidden = false;
+  });
+
+  installBtn.addEventListener('click', function () {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    deferredPrompt.userChoice.finally(function () {
+      deferredPrompt = null;
+      installBtn.hidden = true;
+    });
+  });
+
+  window.addEventListener('appinstalled', function () {
+    deferredPrompt = null;
+    installBtn.hidden = true;
+    toast('Course Tracker installed.');
+  });
+
+  /* ============================ service worker ============================ */
+
+  if ('serviceWorker' in navigator && location.protocol.startsWith('http')) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('./sw.js').catch(function (err) {
+        console.warn('Course Tracker: service worker registration failed.', err);
+      });
+    });
+  }
+
+  /* ============================ go ============================ */
+
+  renderAll();
+})();
+</script>
+</body>
+</html>
