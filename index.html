@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>Course Tracker by The Altitude Mindset</title>
-<meta name="description" content="A spiral habit tracker. Each habit is one turn of the spiral; each day is an aircraft you tap to log.">
+<meta name="description" content="A spiral habit tracker. One turn is a week, each aircraft is a day, and a day flies green once you hit 80% of your habits.">
 <meta name="theme-color" content="#0B1B33">
 <link rel="manifest" href="./manifest.json">
 <link rel="icon" href="./icon-192.png" type="image/png">
@@ -298,6 +298,7 @@
 
   .spiral-empty {
     position: absolute;
+    pointer-events: none;   /* never swallow taps aimed at the markers behind it */
     left: 0; right: 0;
     top: 64%;
     text-align: center;
@@ -500,6 +501,16 @@
   .note.target-note:empty { display: none; }
   .note.rate-note { margin: -4px 0 10px; font-size: 11.5px; color: var(--ink-faint); }
   .note.rate-note:empty { display: none; }
+  .note.backup-note { margin-top: 10px; }
+  .note.ios-hint {
+    margin-top: 10px;
+    padding: 10px 12px;
+    border-radius: 9px;
+    background: rgba(232,196,104,.16);
+    border: 1px solid var(--gold-deep);
+    color: #6B5312;
+  }
+  .note.ios-hint strong { color: var(--navy); }
 
   .divider { border: 0; border-top: 1px solid var(--edge-soft); margin: 16px 0; }
 
@@ -653,7 +664,7 @@
         </div>
 
         <div class="spiral-empty" id="spiralEmpty" hidden>
-          Add a habit to draw its turn of the spiral.
+          Add a habit to start scoring your days.
         </div>
       </div>
 
@@ -690,10 +701,16 @@
           <button type="button" id="importBtn">Import&hellip;</button>
           <button type="button" id="resetBtn" class="btn-danger">Reset month</button>
         </div>
+        <p class="note backup-note" id="backupNote"></p>
         <input type="file" id="importFile" accept="application/json,.json" hidden>
         <p class="note">
           No account, no server &mdash; everything lives on this device. Export to a
           <code>.json</code> file to carry your history to another phone or laptop.
+        </p>
+        <p class="note ios-hint" id="iosHint" hidden>
+          <strong>Add this to your Home Screen.</strong> Until you do, iOS clears
+          the storage of a site you haven&rsquo;t opened in 7 days &mdash; which would
+          take your history with it. Tap Share, then <em>Add to Home Screen</em>.
         </p>
       </div>
     </details>
@@ -786,6 +803,9 @@
   var sheetFlight  = $('sheetFlight');
   var sheetList    = $('sheetList');
   var sheetDay     = null;
+  var focusDay     = 1;
+  var backupNote = $('backupNote');
+  var iosHint    = $('iosHint');
 
   /* ============================ state ============================ */
 
@@ -800,7 +820,8 @@
     return {
       version: 1,
       habits: [{ id: newId(), name: 'Daily Study', createdOn: todayKey() }],
-      months: {}
+      months: {},
+      lastExport: null
     };
   }
 
@@ -832,8 +853,11 @@
 
   /* Accepts anything; returns a state object that is safe to render. */
   function sanitize(obj) {
-    var out = { version: 1, habits: [], months: {} };
+    var out = { version: 1, habits: [], months: {}, lastExport: null };
     if (!obj || typeof obj !== 'object') return out;
+    if (typeof obj.lastExport === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(obj.lastExport)) {
+      out.lastExport = obj.lastExport;
+    }
 
     var seen = {};
     if (Array.isArray(obj.habits)) {
@@ -870,7 +894,13 @@
             var kept = {};
             Object.keys(days).forEach(function (d) {
               if (!/^([1-9]|[12]\d|3[01])$/.test(d)) return;
-              if (days[d] === 'done' || days[d] === 'missed') kept[d] = days[d];
+              /* 'missed' was a stored value under the old three-state tap cycle.
+                 Nothing has written it since the day-sheet model replaced that,
+                 and under the current rules an explicit 'missed' is
+                 indistinguishable from an absent key — both mean "not done".
+                 Dropped on the way in rather than left sitting in storage being
+                 silently ignored. */
+              if (days[d] === 'done') kept[d] = 'done';
             });
             if (Object.keys(kept).length) log[hid] = kept;
           });
@@ -911,11 +941,6 @@
   }
 
   function isFlight(day) { return monthData(false).flightDays.indexOf(day) !== -1; }
-
-  function rawValue(habitId, day) {
-    var log = monthData(false).log[habitId];
-    return (log && log[String(day)]) || 'empty';
-  }
 
   /* How much of the day's habit list got ticked. */
   /* Scored against the habits that existed on that day, never today's list —
@@ -1044,6 +1069,7 @@
     buildMarkers(n);
     buildDayStrip(n);
     buildHabitList();
+    renderBackupNote();
   }
 
   function buildGuide() {
@@ -1072,7 +1098,20 @@
     }
   }
 
+  /* Roving tabindex: the month's markers are ONE tab stop, not 31. Arrow keys
+     move between days, PageUp/PageDown jump a week, Home/End to the ends. */
+  function setFocusDay(day, moveFocus) {
+    var n = daysInMonth(view.y, view.m);
+    day = Math.max(1, Math.min(n, day));
+    focusDay = day;
+    Object.keys(markerMap).forEach(function (k) {
+      markerMap[k].g.setAttribute('tabindex', Number(k) === day ? '0' : '-1');
+    });
+    if (moveFocus && markerMap[day]) markerMap[day].g.focus();
+  }
+
   function buildMarkers(n) {
+    focusDay = Math.min(todayInView() || 1, n);
     markerLayer.textContent = '';
     labelLayer.textContent = '';
     markerMap = {};
@@ -1094,7 +1133,7 @@
         class: 'marker',
         transform: 'translate(' + p.x.toFixed(2) + ',' + p.y.toFixed(2) + ')',
         role: 'button',
-        tabindex: '0'
+        tabindex: day === focusDay ? '0' : '-1'
       });
       g.dataset.day = String(day);
 
@@ -1122,7 +1161,11 @@
       markerLayer.appendChild(g);
       markerMap[day] = { g: g, badge: badge, today: day === todayInView(), ahead: isAhead(day) };
 
-      /* day number, just outside the marker on the outer side of the turn */
+      /* Day number, just outside the marker on the outer side of the turn.
+         Deliberately aria-hidden with tabindex="-1": it is a pointer shortcut
+         for toggling a flight day, and making 31 of them focusable would bury
+         the real controls. The day strip below the spiral is the accessible,
+         keyboard-reachable equivalent — this is not an oversight. */
       var lOff = reach + 15;
       var lg = el('g', { class: 'daylabel', tabindex: '-1', 'aria-hidden': 'true' });
       lg.dataset.day = String(day);
@@ -1221,7 +1264,7 @@
       var ring = document.createElement('span');
       ring.className = 'ring-badge';
       ring.textContent = String(i + 1);
-      ring.title = 'Turn ' + (i + 1) + ' of the spiral';
+      ring.title = 'Habit ' + (i + 1) + ' of ' + state.habits.length;
 
       var input = document.createElement('input');
       input.className = 'habit-name';
@@ -1466,6 +1509,9 @@
     a.click();
     a.remove();
     setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    state.lastExport = todayKey();
+    save();
+    renderBackupNote();
     toast('Exported course-tracker-' + stamp + '.json');
   }
 
@@ -1496,6 +1542,45 @@
 
   /* ============================ chrome helpers ============================ */
 
+  /* Why this matters: this app's only copy of your history is localStorage on
+     this device. iOS Safari evicts that after 7 days without interaction for a
+     site that has NOT been added to the home screen — so a long roster block
+     could take the lot. Installed PWAs are exempt, which makes installing
+     load-bearing rather than a nicety. Exporting is the other half. */
+  var BACKUP_NAG_DAYS = 21;
+
+  function daysSince(key) {
+    if (!key) return Infinity;
+    var p = key.split('-');
+    var then = new Date(+p[0], +p[1] - 1, +p[2]);
+    var now = new Date(); now.setHours(0, 0, 0, 0);
+    return Math.round((now - then) / 86400000);
+  }
+
+  function hasHistory() {
+    return Object.keys(state.months).some(function (k) {
+      var m = state.months[k];
+      return m.flightDays.length || Object.keys(m.log).length;
+    });
+  }
+
+  function renderBackupNote() {
+    var since = daysSince(state.lastExport);
+    var installed = window.matchMedia('(display-mode: standalone)').matches ||
+                    window.navigator.standalone === true;
+
+    backupNote.textContent = state.lastExport
+      ? 'Last exported ' + (since === 0 ? 'today' : since === 1 ? 'yesterday' : since + ' days ago') + '.'
+      : 'Never exported.';
+
+    var stale = hasHistory() && since >= BACKUP_NAG_DAYS;
+    backupNote.className = 'note backup-note' + (stale ? ' warn' : '');
+    if (stale) {
+      backupNote.textContent += ' Worth exporting — this device holds the only copy' +
+        (installed ? '.' : ', and an uninstalled site can have its storage cleared after a week idle.');
+    }
+  }
+
   var toastTimer;
   function toast(msg) {
     toastEl.textContent = msg;
@@ -1514,11 +1599,27 @@
   });
 
   markerLayer.addEventListener('keydown', function (e) {
-    if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
     var g = e.target.closest('.marker');
     if (!g) return;
-    e.preventDefault();
-    openDay(Number(g.dataset.day));
+    var day = Number(g.dataset.day);
+    var n = daysInMonth(view.y, view.m);
+    var step = { ArrowRight: 1, ArrowDown: 1, ArrowLeft: -1, ArrowUp: -1 }[e.key];
+
+    if (step)                 { e.preventDefault(); setFocusDay(day + step, true); return; }
+    if (e.key === 'Home')     { e.preventDefault(); setFocusDay(1, true); return; }
+    if (e.key === 'End')      { e.preventDefault(); setFocusDay(n, true); return; }
+    if (e.key === 'PageUp')   { e.preventDefault(); setFocusDay(day - DAYS_PER_TURN, true); return; }
+    if (e.key === 'PageDown') { e.preventDefault(); setFocusDay(day + DAYS_PER_TURN, true); return; }
+
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar') {
+      e.preventDefault();
+      openDay(day);
+    }
+  });
+
+  markerLayer.addEventListener('focusin', function (e) {
+    var g = e.target.closest('.marker');
+    if (g) setFocusDay(Number(g.dataset.day), false);
   });
 
   labelLayer.addEventListener('click', function (e) {
@@ -1592,6 +1693,7 @@
   document.addEventListener('keydown', function (e) {
     if (e.target.matches('input, textarea')) return;
     if (daySheet.open) return;
+    if (e.target.closest && e.target.closest('.marker')) return;  /* arrows move days there */
     if (e.key === 'ArrowLeft'  && !e.metaKey && !e.ctrlKey) goMonth(-1);
     if (e.key === 'ArrowRight' && !e.metaKey && !e.ctrlKey) goMonth(1);
   });
@@ -1622,6 +1724,29 @@
       installBtn.hidden = true;
     });
   });
+
+  /* Chrome/Firefox honour this and exempt the origin from quota eviction.
+     Safari ignores it, which is why the iOS hint below exists. */
+  if (navigator.storage && navigator.storage.persist) {
+    navigator.storage.persisted().then(function (already) {
+      if (!already) navigator.storage.persist();
+    }).catch(function () {});
+  }
+
+  /* iOS never fires beforeinstallprompt, so the Install button never appears
+     there — yet iOS is the platform where installing actually protects data. */
+  (function () {
+    var ua = navigator.userAgent;
+    /* iPadOS reports platform MacIntel, hence the second clause. The Android
+       guard keeps emulated/DevTools sessions (Android UA on a MacIntel host)
+       from tripping it. */
+    var iOS = /iPad|iPhone|iPod/.test(ua) ||
+              (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1 &&
+               !/Android/.test(ua));
+    var standalone = window.navigator.standalone === true ||
+                     window.matchMedia('(display-mode: standalone)').matches;
+    if (iOS && !standalone) iosHint.hidden = false;
+  })();
 
   window.addEventListener('appinstalled', function () {
     deferredPrompt = null;

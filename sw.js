@@ -1,11 +1,10 @@
-/* Course Tracker by The Altitude Mindset — cache-first service worker */
-const CACHE = 'course-tracker-v9';
+/* Course Tracker by The Altitude Mindset — service worker */
+const CACHE = 'course-tracker-v10';
 
 const ASSETS = [
   './',
   './index.html',
   './manifest.json',
-  './sw.js',
   './icon-192.png',
   './icon-512.png'
 ];
@@ -35,6 +34,28 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  /* Navigations are network-first.
+     Cache-first here meant a deployed fix only reached installed users if I
+     remembered to bump CACHE — one forgotten bump and everyone is frozen on an
+     old build with no way to tell. Going to the network first costs a moment
+     on launch when online and removes that whole failure mode; the cache still
+     answers instantly when there is no connection. */
+  if (req.mode === 'navigate') {
+    event.respondWith(
+      fetch(req)
+        .then((res) => {
+          const copy = res.clone();
+          caches.open(CACHE).then((c) => c.put('./index.html', copy)).catch(() => {});
+          return res;
+        })
+        .catch(() => caches.match('./index.html', { ignoreSearch: true })
+          .then((hit) => hit || caches.match('./', { ignoreSearch: true })))
+    );
+    return;
+  }
+
+  /* Everything else — icons, manifest — is cache-first. These change rarely and
+     are worth having instantly offline. */
   event.respondWith(
     caches.match(req, { ignoreSearch: true }).then((hit) => {
       if (hit) return hit;
@@ -42,15 +63,11 @@ self.addEventListener('fetch', (event) => {
         .then((res) => {
           if (res && res.ok && res.type === 'basic') {
             const copy = res.clone();
-            caches.open(CACHE).then((c) => c.put(req, copy));
+            caches.open(CACHE).then((c) => c.put(req, copy)).catch(() => {});
           }
           return res;
         })
-        .catch(() => {
-          // Offline and uncached: fall back to the shell for navigations.
-          if (req.mode === 'navigate') return caches.match('./index.html');
-          return Response.error();
-        });
+        .catch(() => Response.error());
     })
   );
 });
