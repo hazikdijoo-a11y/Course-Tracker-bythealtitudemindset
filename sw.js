@@ -1,5 +1,5 @@
 /* Course Tracker by The Altitude Mindset — cache-first service worker */
-const CACHE = 'course-tracker-v7';
+const CACHE = 'course-tracker-v8';
 
 const ASSETS = [
   './',

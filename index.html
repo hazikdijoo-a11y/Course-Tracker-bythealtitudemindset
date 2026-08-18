@@ -570,6 +570,11 @@
   .tick input { width: 19px; height: 19px; flex: none; accent-color: #639922; cursor: pointer; }
   .tick.is-on { background: rgba(99,153,34,.09); border-color: rgba(99,153,34,.4); }
   .tick.is-on span { color: #3B6D11; font-weight: 550; }
+  .tick.is-later { opacity: .5; cursor: not-allowed; background: transparent; border-style: dashed; }
+  .tick.is-later input { cursor: not-allowed; }
+  .tick em { margin-left: auto; font-style: normal; font-size: 11px; color: var(--ink-faint); white-space: nowrap; }
+  .sheet-later { margin: 10px 2px 0; font-size: 11.5px; color: var(--ink-faint); line-height: 1.45; }
+  .sheet-later:empty { display: none; }
 
   .sheet-foot { padding: 0 20px 18px; }
   .sheet-foot button { width: 100%; }
@@ -692,6 +697,7 @@
   </div>
   <div class="sheet-body">
     <ul id="sheetList"></ul>
+    <p class="sheet-later" id="sheetLater"></p>
   </div>
   <div class="sheet-foot">
     <button type="button" id="sheetClose" class="btn-primary">Done</button>
@@ -750,6 +756,7 @@
   var panel      = $('habitsPanel');
   var targetNote = $('targetNote');
   var rateNote   = $('rateNote');
+  var sheetLater = $('sheetLater');
   var daySheet   = $('daySheet');
   var sheetTitle = $('sheetTitle');
   var sheetScore = $('sheetScore');
@@ -770,7 +777,7 @@
   function freshState() {
     return {
       version: 1,
-      habits: [{ id: newId(), name: 'Daily Study' }],
+      habits: [{ id: newId(), name: 'Daily Study', createdOn: todayKey() }],
       months: {}
     };
   }
@@ -814,7 +821,11 @@
         var id = (typeof h.id === 'string' && h.id) ? h.id : ('h' + (i + 1));
         while (seen[id]) id = id + '_';
         seen[id] = true;
-        out.habits.push({ id: id, name: h.name.slice(0, 40) || 'Untitled' });
+        var rec = { id: id, name: h.name.slice(0, 40) || 'Untitled' };
+        if (typeof h.createdOn === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(h.createdOn)) {
+          rec.createdOn = h.createdOn;
+        }
+        out.habits.push(rec);
       });
     }
 
@@ -853,6 +864,19 @@
   /* ============================ date helpers ============================ */
 
   function monthKey(y, m) { return y + '-' + String(m + 1).padStart(2, '0'); }
+  function dayKey(day) { return monthKey(view.y, view.m) + '-' + String(day).padStart(2, '0'); }
+  function todayKey() {
+    var t = new Date();
+    return monthKey(t.getFullYear(), t.getMonth()) + '-' + String(t.getDate()).padStart(2, '0');
+  }
+
+  /* Habits carry the date they were added. A habit with no createdOn predates
+     this field and counts everywhere, so existing data scores exactly as before. */
+  function habitStart(h) { return h.createdOn || '0000-01-01'; }
+  function isActiveOn(h, day) { return habitStart(h) <= dayKey(day); }
+  function activeHabits(day) {
+    return state.habits.filter(function (h) { return isActiveOn(h, day); });
+  }
   function daysInMonth(y, m) { return new Date(y, m + 1, 0).getDate(); }
 
   function monthData(create) {
@@ -872,14 +896,17 @@
   }
 
   /* How much of the day's habit list got ticked. */
+  /* Scored against the habits that existed on that day, never today's list —
+     otherwise adding a habit retroactively re-marks every day of the month. */
   function dayScore(day) {
     var log = monthData(false).log;
+    var active = activeHabits(day);
     var done = 0;
-    state.habits.forEach(function (h) {
+    active.forEach(function (h) {
       var d = log[h.id];
       if (d && d[String(day)] === 'done') done++;
     });
-    var total = state.habits.length;
+    var total = active.length;
     return { done: done, total: total, pct: total ? done / total : 0 };
   }
 
@@ -926,9 +953,13 @@
     var flights = md.flightDays.filter(function (d) { return d <= upto; });
     var denom = upto - flights.length;
     var log = md.log[habitId] || {};
+    var habit = state.habits.filter(function (h) { return h.id === habitId; })[0];
     var done = 0;
+    denom = 0;
     for (var d = 1; d <= upto; d++) {
       if (flights.indexOf(d) !== -1) continue;
+      if (habit && !isActiveOn(habit, d)) continue;   // before this habit existed
+      denom++;
       if (log[String(d)] === 'done') done++;
     }
     return { done: done, denom: denom, upto: upto, flights: flights.length };
@@ -1210,10 +1241,13 @@
     var upto = elapsedDays();
     var fl = monthData(false).flightDays.filter(function (d) { return d <= upto; }).length;
     var flTxt = fl ? ', minus ' + fl + ' flight ' + (fl === 1 ? 'day' : 'days') : '';
+    var mk = monthKey(view.y, view.m);
+    var midMonth = state.habits.some(function (h) { return h.createdOn && h.createdOn.slice(0, 7) >= mk; });
     rateNote.textContent = !upto
       ? MONTHS[view.m] + ' has not started yet.'
       : 'Rates cover ' + (upto === n ? 'all ' + n + ' days' : 'the ' + upto + ' days so far') +
-        ' of ' + MONTHS[view.m] + flTxt + '.';
+        ' of ' + MONTHS[view.m] + flTxt + '.' +
+        (midMonth ? ' Habits added mid-month count only from the day you added them.' : '');
 
     var full = state.habits.length >= MAX_HABITS;
     addInput.disabled = full;
@@ -1278,22 +1312,34 @@
 
     var log = monthData(false).log;
     sheetList.textContent = '';
+    var later = 0;
     state.habits.forEach(function (h) {
+      var live = isActiveOn(h, day);
+      if (!live) later++;
       var on = !!(log[h.id] && log[h.id][String(day)] === 'done');
       var li = document.createElement('li');
       var lab = document.createElement('label');
-      lab.className = 'tick' + (on ? ' is-on' : '');
+      lab.className = 'tick' + (on ? ' is-on' : '') + (live ? '' : ' is-later');
       var cb = document.createElement('input');
       cb.type = 'checkbox';
-      cb.checked = on;
+      cb.checked = on && live;
+      cb.disabled = !live;
       cb.dataset.habit = h.id;
       var span = document.createElement('span');
       span.textContent = h.name;
       lab.appendChild(cb);
       lab.appendChild(span);
+      if (!live) {
+        var tag = document.createElement('em');
+        tag.textContent = 'added later';
+        lab.appendChild(tag);
+      }
       li.appendChild(lab);
       sheetList.appendChild(li);
     });
+    sheetLater.textContent = later
+      ? later + (later === 1 ? ' habit did' : ' habits did') + ' not exist yet on this day, so it is not scored against ' + (later === 1 ? 'it' : 'them') + '.'
+      : '';
   }
 
   function setHabitDay(habitId, day, on) {
@@ -1337,7 +1383,7 @@
     name = name.trim().slice(0, 40);
     if (!name) return;
     if (state.habits.length >= MAX_HABITS) return;
-    state.habits.push({ id: newId(), name: name });
+    state.habits.push({ id: newId(), name: name, createdOn: todayKey() });
     save();
     renderAll();
   }
@@ -1452,6 +1498,7 @@
   sheetList.addEventListener('change', function (e) {
     var cb = e.target.closest('input[type="checkbox"]');
     if (!cb) return;
+    if (cb.disabled) { cb.checked = false; return; }
     if (isFlight(sheetDay)) { cb.checked = !cb.checked; toast('Clear the flight day first to tick habits.'); return; }
     cb.closest('.tick').classList.toggle('is-on', cb.checked);
     setHabitDay(cb.dataset.habit, sheetDay, cb.checked);
