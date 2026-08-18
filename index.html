@@ -213,6 +213,19 @@
     user-select: none;
   }
 
+  .today-ring { fill: none; stroke: none; }
+  .marker.is-today .today-ring {
+    stroke: var(--cream);
+    stroke-width: 1.6;
+    opacity: .8;
+    stroke-dasharray: 5 4;
+  }
+  /* days that have not arrived recede, so "not yet" never reads like a result */
+  .marker.is-ahead use   { opacity: .42; }
+  .marker.is-ahead .badge { opacity: .42; }
+  .daylabel.is-ahead text { opacity: .45; }
+  .daylabel.is-today text { fill: var(--cream); font-weight: 700; }
+
   .marker.s-pending use { fill: none;          stroke: var(--empty);       stroke-width: 1.4; }
   .marker.s-partial use { fill: none;          stroke: var(--done);        stroke-width: 2.8; }
   .marker.s-met     use { fill: var(--done);   stroke: var(--done-edge);   stroke-width: 0.8; }
@@ -241,7 +254,7 @@
     pointer-events: none;
     user-select: none;
   }
-  .daylabel.is-flight text { fill: var(--gold); font-weight: 700; }
+  .daylabel.is-flight text, .daylabel.is-flight.is-today text { fill: var(--gold); font-weight: 700; }
   .daylabel:hover text { fill: var(--on-panel); }
 
   /* month hub, centred in the spiral's hole */
@@ -318,6 +331,13 @@
     font-variant-numeric: tabular-nums;
     text-align: center;
   }
+  .daystrip button.is-today {
+    border-color: var(--navy);
+    box-shadow: inset 0 0 0 2px var(--navy);
+    font-weight: 700;
+  }
+  .daystrip button.is-ahead { color: var(--ink-faint); }
+
   .daystrip button[aria-pressed="true"] {
     background: var(--navy);
     border-color: var(--navy);
@@ -347,6 +367,7 @@
   }
   .lg-empty   { border: 1.5px solid var(--empty); }
   .lg-partial { border: 2.5px solid var(--done); }
+  .lg-today   { border: 2px dashed var(--cream); border-radius: 50%; }
   .lg-done   { background: var(--done); }
   .lg-missed { background: var(--missed); box-shadow: inset 0 0 0 2px var(--missed-edge); }
   .lg-flight { background: var(--flight); box-shadow: inset 0 0 0 2px var(--flight-edge); }
@@ -642,6 +663,7 @@
         <span><i class="lg-done"></i> Target met &#10003;</span>
         <span><i class="lg-missed"></i> Missed &#10005;</span>
         <span><i class="lg-flight"></i> Flight day &#9992;</span>
+        <span><i class="lg-today"></i> Today</span>
       </div>
     </section>
 
@@ -919,6 +941,13 @@
     return Math.max(1, Math.min(Math.ceil(total * GOAL), total - 1));
   }
 
+  /* The day number if today falls inside the month being viewed, else null. */
+  function todayInView() {
+    var t = new Date();
+    return (t.getFullYear() === view.y && t.getMonth() === view.m) ? t.getDate() : null;
+  }
+  function isAhead(day) { return !isPast(day) && day !== todayInView(); }
+
   function isPast(day) {
     var t = new Date(); t.setHours(0, 0, 0, 0);
     return new Date(view.y, view.m, day) < t;
@@ -1069,6 +1098,7 @@
       });
       g.dataset.day = String(day);
 
+      g.appendChild(el('circle', { class: 'today-ring', r: (reach + 5).toFixed(1) }));
       g.appendChild(el('ellipse', {
         class: 'hit',
         rx: hitAcross.toFixed(1),
@@ -1090,7 +1120,7 @@
       g.appendChild(badge);
 
       markerLayer.appendChild(g);
-      markerMap[day] = { g: g, badge: badge };
+      markerMap[day] = { g: g, badge: badge, today: day === todayInView(), ahead: isAhead(day) };
 
       /* day number, just outside the marker on the outer side of the turn */
       var lOff = reach + 15;
@@ -1099,6 +1129,8 @@
       lg.setAttribute('transform',
         'translate(' + (p.x + p.ux * lOff).toFixed(2) + ',' + (p.y + p.uy * lOff).toFixed(2) + ')');
       lg.appendChild(el('circle', { class: 'hit', r: '12' }));
+      if (day === todayInView()) lg.classList.add('is-today');
+      else if (isAhead(day)) lg.classList.add('is-ahead');
       var t = el('text', { 'font-size': '14' });
       t.textContent = String(day);
       lg.appendChild(t);
@@ -1116,12 +1148,13 @@
     if (!ref) return;
 
     var st = dayState(day);
-    ref.g.setAttribute('class', 'marker s-' + st);
+    ref.g.setAttribute('class', 'marker s-' + st +
+      (ref.today ? ' is-today' : '') + (ref.ahead ? ' is-ahead' : ''));
     ref.badge.textContent = BADGE[st] || '';
 
     var sc = dayScore(day);
     var pct = Math.round(sc.pct * 100);
-    var date = day + ' ' + MONTHS[view.m];
+    var date = (ref.today ? 'Today, ' : '') + day + ' ' + MONTHS[view.m];
     var label;
     if (st === 'flight') {
       label = date + ', flight day';
@@ -1150,8 +1183,9 @@
 
   function paintLabel(day) {
     var on = isFlight(day);
+    var extra = day === todayInView() ? ' is-today' : (isAhead(day) ? ' is-ahead' : '');
     (labelMap[day] || []).forEach(function (g) {
-      g.setAttribute('class', 'daylabel' + (on ? ' is-flight' : ''));
+      g.setAttribute('class', 'daylabel' + (on ? ' is-flight' : '') + extra);
     });
   }
 
@@ -1168,6 +1202,8 @@
       b.textContent = String(d);
       b.setAttribute('aria-pressed', isFlight(d) ? 'true' : 'false');
       b.setAttribute('aria-label', d + ' ' + MONTHS[view.m] + ', flight day');
+      if (d === todayInView()) { b.classList.add('is-today'); b.title = 'Today'; }
+      else if (isAhead(d)) b.classList.add('is-ahead');
       dayStrip.appendChild(b);
     }
   }
