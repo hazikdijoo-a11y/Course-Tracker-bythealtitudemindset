@@ -8,8 +8,8 @@
 | Package name | `com.thealtitudemindset.coursetracker` | **Permanent.** Cannot ever be changed once published. |
 | Category | Health & Fitness | alt: Productivity |
 | Content rating | Everyone | |
-| Website | https://hazikdijoo-a11y.github.io/Course-Tracker-bythealtitudemindset/ | |
-| Privacy policy | https://hazikdijoo-a11y.github.io/Course-Tracker-bythealtitudemindset/privacy.html | |
+| Website | https://tracker.thealtitudemindset.com/ | |
+| Privacy policy | https://tracker.thealtitudemindset.com/privacy.html | |
 | Contact email | hazikdijoo@gmail.com | shown publicly on the listing |
 
 ## Short description (80 char max)
@@ -82,7 +82,7 @@ Take these on the phone from the live app or the demo:
 4. A flight-day month, showing gold spokes
 
 The demo build is the easiest source, since it is already populated:
-https://hazikdijoo-a11y.github.io/Course-Tracker-bythealtitudemindset/demo.html
+https://tracker.thealtitudemindset.com/demo.html
 
 ## Data safety form answers
 

@@ -19,7 +19,7 @@ before.
 **2. Digital Asset Links must live at the domain root.**
 A TWA only opens without a browser bar if this file is reachable:
 
-    https://hazikdijoo-a11y.github.io/.well-known/assetlinks.json
+    https://tracker.thealtitudemindset.com/.well-known/assetlinks.json
 
 That is the **root** of the github.io origin, not this project's folder. You would
 need a second repo named exactly `hazikdijoo-a11y.github.io` containing
@@ -67,7 +67,7 @@ review notes if it is ever queried.
 Requires a JDK and the Android SDK (~1.5 GB), which Bubblewrap downloads on first run
 into `~/.bubblewrap`. Neither is currently installed on this machine.
 
-    npx @bubblewrap/cli init --manifest https://hazikdijoo-a11y.github.io/Course-Tracker-bythealtitudemindset/manifest.json
+    npx @bubblewrap/cli init --manifest https://tracker.thealtitudemindset.com/manifest.json
     npx @bubblewrap/cli build
 
 That produces `app-release-bundle.aab` — the file you upload to Play — and prints the
