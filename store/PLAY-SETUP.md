@@ -76,3 +76,38 @@ SHA-256 fingerprint of your signing key. That fingerprint goes into
 
 Order matters: build first to get the fingerprint, publish assetlinks.json second,
 then upload the bundle.
+
+---
+
+## Build output (done)
+
+`app-release-bundle.aab` and `app-release-signed.apk` are built in
+`~/Downloads/twa-build/`, signed with the upload key at
+`~/Downloads/twa-build/signing/`.
+
+    package      com.thealtitudemindset.coursetracker
+    versionCode  1
+    versionName  1.0.0
+    origin       tracker.thealtitudemindset.com
+    upload key   SHA-256 5F:C7:E2:0E:95:3E:44:59:CC:0E:0B:96:49:6F:CC:D1:05:AB:7B:E6:DC:72:92:DA:5A:EB:3C:2D:17:DD:AD:C3
+
+### One thing that must be done AFTER the first upload
+
+`.well-known/assetlinks.json` currently lists the **upload key** fingerprint. That
+is what makes the sideloaded APK verify, and it is correct for testing.
+
+It is **not** what users will get. With Play App Signing, Google re-signs the app
+with its own key, so the delivered app's fingerprint is different. After the first
+upload go to:
+
+    Play Console -> Test and release -> Setup -> App integrity -> App signing key certificate
+
+Copy that SHA-256 and **add it to the array** — keep both, do not replace:
+
+    "sha256_cert_fingerprints": [
+      "5F:C7:...:C3",          <- upload key, keeps local testing working
+      "<the one from Play>"    <- app signing key, what users actually run
+    ]
+
+If you skip this, the app still works but opens with a browser URL bar across the
+top, which is the single most common way a TWA ships looking unfinished.
