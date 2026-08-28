@@ -6,7 +6,7 @@
 |---|---|---|
 | App name | `Course Tracker` | 30 char limit; 14 used |
 | Package name | `com.thealtitudemindset.coursetracker` | **Permanent.** Cannot ever be changed once published. |
-| Category | Health & Fitness | alt: Productivity |
+| Category | **Productivity** | Health & Fitness also fits, but it triggers Play's extra Health apps declaration for no benefit here |
 | Content rating | Everyone | |
 | Website | https://tracker.thealtitudemindset.com/ | |
 | Privacy policy | https://tracker.thealtitudemindset.com/privacy.html | |
