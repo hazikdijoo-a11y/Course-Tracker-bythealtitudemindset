@@ -1,10 +1,15 @@
-[{
-  "relation": ["delegate_permission/common.handle_all_urls"],
-  "target": {
-    "namespace": "android_app",
-    "package_name": "com.thealtitudemindset.coursetracker",
-    "sha256_cert_fingerprints": [
-      "5F:C7:E2:0E:95:3E:44:59:CC:0E:0B:96:49:6F:CC:D1:05:AB:7B:E6:DC:72:92:DA:5A:EB:3C:2D:17:DD:AD:C3"
-    ]
+[
+  {
+    "relation": [
+      "delegate_permission/common.handle_all_urls"
+    ],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.thealtitudemindset.coursetracker",
+      "sha256_cert_fingerprints": [
+        "8B:30:53:19:26:20:23:E7:6B:CE:E5:87:33:B6:45:DE:F3:B8:1B:AC:A7:72:86:22:12:17:2A:AD:BA:FF:5C:11",
+        "5F:C7:E2:0E:95:3E:44:59:CC:0E:0B:96:49:6F:CC:D1:05:AB:7B:E6:DC:72:92:DA:5A:EB:3C:2D:17:DD:AD:C3"
+      ]
+    }
   }
-}]
+]
