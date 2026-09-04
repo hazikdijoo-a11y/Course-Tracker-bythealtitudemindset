@@ -1540,10 +1540,16 @@
     var n = list.length;
     if (!n) { dayDial.setAttribute('viewBox', '-60 -60 120 120'); dayDialHubText.textContent = ''; return; }
 
-    var turns = (n - 1) / D_PER_TURN;
+    /* With fewer habits than a full turn, spacing them at 1/9 of a circle bunches
+       them into one arc and collapses the span, which in turn swells the hub until
+       it covers them. Spread a short list evenly around one full ring instead. */
+    var perTurn = Math.min(D_PER_TURN, Math.max(n, 1));
+    var turns = (n - 1) / perTurn;
     var span = D_R0 + D_DR * turns + D_PAD;
     dayDial.setAttribute('viewBox', (-span) + ' ' + (-span) + ' ' + (span * 2) + ' ' + (span * 2));
-    dayDial.parentNode.style.setProperty('--dhole', (D_R0 * 0.9 / span).toFixed(4));
+    /* and cap the hole, so the hub can never grow into the boxes */
+    dayDial.parentNode.style.setProperty('--dhole',
+      Math.min(D_R0 * 0.9 / span, 0.40).toFixed(4));
 
     /* guide spiral */
     var d = '', steps = Math.max(24, Math.round(turns * 200));
@@ -1572,8 +1578,8 @@
 
     boxFocus = null;
     list.forEach(function (h, i) {
-      var p = dayPointAt(i / D_PER_TURN);
-      var spacing = TWO_PI * p.r / D_PER_TURN;
+      var p = dayPointAt(i / perTurn);
+      var spacing = TWO_PI * p.r / perTurn;
       var size = Math.max(7, Math.min(14, spacing * 0.55));
 
       var g = el('g', { class: 'hbox', role: 'button', tabindex: boxFocus === null ? '0' : '-1',
@@ -1588,8 +1594,8 @@
         transform: 'rotate(' + p.angle.toFixed(2) + ')'
       }));
 
-      var phase = (i % D_PER_TURN) / D_PER_TURN;
-      var ping = el('circle', { class: 'ping', r: (size * 0.85 + 5).toFixed(1) });
+      var phase = (i % perTurn) / perTurn;
+      var ping = el('circle', { class: 'ping', r: (size * 0.7 + 3).toFixed(1) });
       ping.style.animationDelay = (-SWEEP_SECONDS * (1 - phase)).toFixed(4) + 's';
       g.appendChild(ping);
 
