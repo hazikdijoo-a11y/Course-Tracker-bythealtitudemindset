@@ -271,7 +271,9 @@
   .marker.s-missed  .badge { fill: var(--missed); }
   .marker.s-flight  .badge { fill: var(--flight); }
 
-  .marker:hover use { filter: brightness(1.12); }
+  @media (hover: hover) {
+    .marker:hover use { filter: brightness(1.12); }
+  }
   .marker:focus { outline: none; }
   .marker:focus-visible .hit {
     stroke: var(--gold);
@@ -590,6 +592,9 @@
     position: sticky;
     top: 0;
   }
+  .sheet-head h3:focus { outline: none; }
+  #dayBoxes:focus, #dayDial:focus { outline: none; }
+
   .sheet-head h3 {
     margin: 0;
     font-family: var(--serif);
@@ -668,7 +673,9 @@
   .hbox.flight .box { fill: var(--gold);   stroke: var(--gold-deep); }
   .hbox.later       { cursor: not-allowed; }
   .hbox.later .box  { stroke: var(--guide); stroke-dasharray: 2 2; opacity: .6; }
-  .hbox:hover .box  { stroke: var(--cream); }
+  @media (hover: hover) {
+    .hbox:hover .box { stroke: var(--cream); }
+  }
   .hbox:focus { outline: none; }
   .hbox:focus-visible .hit { stroke: var(--gold); stroke-width: 1.6; stroke-dasharray: 3 3; }
 
@@ -824,7 +831,7 @@
 
 <dialog id="daySheet" aria-labelledby="sheetTitle">
   <div class="sheet-head">
-    <h3 id="sheetTitle">Day</h3>
+    <h3 id="sheetTitle" tabindex="-1">Day</h3>
     <div class="sheet-score" id="sheetScore">0 / 0</div>
     <div class="sheet-verdict" id="sheetVerdict"></div>
     <div class="day-dial-wrap">
@@ -1513,6 +1520,11 @@
     renderSheet();
     if (typeof daySheet.showModal === 'function') daySheet.showModal();
     else daySheet.setAttribute('open', '');
+    /* Without this the dialog's own focus search lands on <g id="dayBoxes">, a
+       non-interactive group, and Chrome paints its default focus ring around the
+       whole dial. Focusing the heading is also what a screen reader should hear
+       first: the date. */
+    sheetTitle.focus();
   }
 
   /* ---- the day dial: one small box per habit, wound onto a spiral ----
