@@ -102,3 +102,26 @@ load and has no analytics.
 
 Answer **No** to every question — no violence, sexuality, language, controlled
 substances, gambling, user interaction, or location sharing. Result: **Everyone**.
+
+---
+
+## Screenshots (done)
+
+`store/screenshots/` — four, Play-legal, taken from the demo build:
+
+| File | Shows | Size | Ratio |
+|---|---|---|---|
+| `play-1-month-august.png` | Full month, every state, weekday spokes | 647x1096 | 1.694 |
+| `play-2-day-93.png` | Day dial at 93%, target met | 720x1215 | 1.688 |
+| `play-3-day-partial.png` | Day dial partly done, with the distance to target | 720x1215 | 1.688 |
+| `play-4-month-september.png` | Current month, today ringed, radar sweeping | 647x1096 | 1.694 |
+
+Upload `play-2-day-93.png` **first** — it is the one that explains the app in a
+single glance, and the first screenshot is what shows in search results.
+
+Two things that had to be fixed before these were usable, worth remembering if
+they are ever reshot:
+- Phone captures are ~1.98:1 and Play caps at 16:9. Cropping the browser chrome
+  off the top happened to bring them inside the limit.
+- Never shoot from the browser. The Chrome address bar in the frame makes the
+  listing read as a website rather than an app.
